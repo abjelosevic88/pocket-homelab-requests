@@ -1154,7 +1154,11 @@ func seerrResult(t Title) map[string]any {
 		m["mediaType"], m["title"], m["originalTitle"], m["releaseDate"], m["video"] = "movie", t.Title, t.Title, t.Release, false
 	}
 	info["mediaType"] = m["mediaType"]
-	m["mediaInfo"] = info
+	if info["status"] == 1 && t.Request == nil {
+		m["mediaInfo"] = nil // Jellyseerr knows nothing about it either
+	} else {
+		m["mediaInfo"] = info
+	}
 	return m
 }
 
@@ -1187,23 +1191,40 @@ func (s *Server) seerrSearch(w http.ResponseWriter, r *http.Request) {
 		writeSeerrPage(w, r, []map[string]any{})
 		return
 	}
-	var ts []Title
+	var films, shows []Title
 	if c, err := s.arrFor(ctx, "radarr"); err == nil {
 		if ms, err := c.LookupMovies(ctx, q); err == nil {
-			for i, m := range ms {
-				if m.TMDBID > 0 && i < 20 {
-					ts = append(ts, movieTitle(m))
+			for _, m := range ms {
+				if m.TMDBID > 0 && len(films) < 20 {
+					films = append(films, movieTitle(m))
 				}
 			}
 		}
 	}
 	if c, err := s.arrFor(ctx, "sonarr"); err == nil {
 		if ss, err := c.LookupSeries(ctx, q); err == nil {
-			for i, x := range ss {
-				if x.TMDBID > 0 && i < 20 {
-					ts = append(ts, seriesTitle(x))
+			for _, x := range ss {
+				if x.TMDBID > 0 && len(shows) < 20 {
+					shows = append(shows, seriesTitle(x))
 				}
 			}
+		}
+	}
+	// a show whose name is exactly the search goes first (TMDb ranks it so too)
+	var ts []Title
+	for i := 0; i < len(films) || i < len(shows); i++ {
+		if i < len(shows) && (i > 0 || strings.EqualFold(shows[i].Title, q)) {
+			ts = append(ts, shows[i])
+			if i < len(films) {
+				ts = append(ts, films[i])
+			}
+			continue
+		}
+		if i < len(films) {
+			ts = append(ts, films[i])
+		}
+		if i < len(shows) {
+			ts = append(ts, shows[i])
 		}
 	}
 	writeSeerrPage(w, r, seerrResults(s.annotate(ctx, actorID(ctx), ts)))
@@ -1309,7 +1330,10 @@ func genres(names []string) []map[string]any {
 
 // seerrTitleInfo is mediaInfo for a details page, with the caller's requests.
 func (s *Server) seerrTitleInfo(ctx context.Context, t Title) map[string]any {
-	info := seerrResult(t)["mediaInfo"].(map[string]any)
+	info, _ := seerrResult(t)["mediaInfo"].(map[string]any)
+	if info == nil {
+		info = map[string]any{"tmdbId": t.TMDBID, "status": 1, "mediaType": map[bool]string{true: "tv", false: "movie"}[t.Kind == "series"]}
+	}
 	reqs := []map[string]any{}
 	users := map[int64]map[string]any{}
 	for _, rq := range s.ownTitleRequests(ctx, t) {
@@ -1388,6 +1412,7 @@ func (s *Server) seerrTV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t := s.annotate(ctx, actorID(ctx), []Title{seriesTitle(*sr)})[0]
+	s.fillSeasonCounts(ctx, sr)
 	seasons := []map[string]any{}
 	episodes := 0
 	for _, se := range sr.Seasons {

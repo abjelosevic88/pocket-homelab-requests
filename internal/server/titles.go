@@ -696,6 +696,7 @@ func (s *Server) handleSeriesTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t := s.annotate(ctx, actorID(ctx), []Title{seriesTitle(*sr)})[0]
+	known := sr.ID > 0 || s.fillSeasonCounts(ctx, sr)
 	reqs := s.ownTitleRequests(ctx, t)
 	requested := map[int]bool{}
 	all := false
@@ -732,7 +733,7 @@ func (s *Server) handleSeriesTitle(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(seasons, func(i, j int) bool { return seasons[i].Number < seasons[j].Number })
 	writeJSON(w, http.StatusOK, titleDetail(t, map[string]any{"network": sr.Network, "certification": sr.Certification, "seasons": seasons,
-		"next_airing": sr.NextAiring, "requests": reqs, "known_episodes": sr.ID > 0}))
+		"next_airing": sr.NextAiring, "requests": reqs, "known_episodes": known}))
 }
 
 func (s *Server) handleAlbumTitle(w http.ResponseWriter, r *http.Request) {
@@ -808,4 +809,48 @@ func (s *Server) ownTitleRequests(ctx context.Context, t Title) []publicRequest 
 		}
 	}
 	return out
+}
+
+// fillSeasonCounts gives a show that isn't in Sonarr yet its seasons' episode
+// counts from TVmaze (cached a day); Sonarr's lookup has none.
+func (s *Server) fillSeasonCounts(ctx context.Context, sr *arr.Series) bool {
+	if sr == nil || sr.ID > 0 || sr.TVDBID == 0 {
+		return false
+	}
+	key := "tvmaze-seasons:" + strconv.FormatInt(sr.TVDBID, 10)
+	var seasons []arr.TVmazeSeason
+	if v, at, ok := s.store.CacheGet(ctx, key); ok {
+		if t, err := time.Parse(time.RFC3339Nano, at); err == nil && time.Since(t) < 24*time.Hour {
+			_ = json.Unmarshal([]byte(v), &seasons)
+		}
+	}
+	if seasons == nil {
+		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		list, err := arr.TVmazeSeasons(cctx, sr.TVDBID)
+		cancel()
+		if err != nil {
+			return false
+		}
+		seasons = list
+		b, _ := json.Marshal(seasons)
+		_ = s.store.CachePut(ctx, key, string(b))
+	}
+	by := map[int]arr.TVmazeSeason{}
+	for _, x := range seasons {
+		by[x.Number] = x
+	}
+	filled := false
+	for i := range sr.Seasons {
+		x, ok := by[sr.Seasons[i].SeasonNumber]
+		if !ok || x.EpisodeOrder == nil {
+			continue
+		}
+		st := &arr.SeasonStats{TotalEpisodeCount: *x.EpisodeOrder}
+		if x.PremiereDate != "" && x.PremiereDate <= time.Now().Format("2006-01-02") {
+			st.EpisodeCount = *x.EpisodeOrder // aired (or airing)
+		}
+		sr.Seasons[i].Statistics = st
+		filled = true
+	}
+	return filled
 }

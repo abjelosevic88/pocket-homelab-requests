@@ -438,3 +438,43 @@ func (j *Jellyfin) SignIn(ctx context.Context, name, password string) (*Jellyfin
 	}
 	return &out.User, nil
 }
+
+// TVmazeSeason is one season as TVmaze knows it.
+type TVmazeSeason struct {
+	Number       int    `json:"number"`
+	EpisodeOrder *int   `json:"episodeOrder"`
+	PremiereDate string `json:"premiereDate"`
+	EndDate      string `json:"endDate"`
+}
+
+// TVmazeSeasons returns a show's seasons by its TVDB id (no key needed) —
+// for shows not in Sonarr yet, whose lookup carries no episode counts.
+func TVmazeSeasons(ctx context.Context, tvdbID int64) ([]TVmazeSeason, error) {
+	cl := &http.Client{Timeout: 15 * time.Second}
+	get := func(u string, out any) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := cl.Do(req)
+		if err != nil {
+			return fmt.Errorf("TVmaze did not answer: %w", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			return &Error{Status: resp.StatusCode, Msg: "TVmaze: " + resp.Status}
+		}
+		return json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(out)
+	}
+	var show struct {
+		ID int64 `json:"id"`
+	}
+	if err := get("https://api.tvmaze.com/lookup/shows?thetvdb="+strconv.FormatInt(tvdbID, 10), &show); err != nil {
+		return nil, err
+	}
+	if show.ID == 0 {
+		return nil, &Error{Status: http.StatusNotFound, Msg: "TVmaze doesn't know that show"}
+	}
+	var seasons []TVmazeSeason
+	return seasons, get("https://api.tvmaze.com/shows/"+strconv.FormatInt(show.ID, 10)+"/seasons", &seasons)
+}
