@@ -370,3 +370,8 @@ a.list-row:hover { background: var(--surface-2); }
 .sab-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
 .sab-bar .sab-name { font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
 .sab-bar .sab-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }
+
+/* rows and cards that are links: no underline on hover (text links keep theirs) */
+a.rrow, a.list-row, a.tcard, a.way-card, a.my-request, a.dl-row, a.sb-sum-row, a.home-pending, a.req-poster, a.ready-art, a.callout, a.appr-title,
+a.rrow:hover, a.list-row:hover, a.tcard:hover, a.way-card:hover, a.my-request:hover, a.dl-row:hover, a.sb-sum-row:hover, a.home-pending:hover,
+a.req-poster:hover, a.ready-art:hover, a.callout:hover, a.appr-title:hover { text-decoration: none; }
