@@ -103,6 +103,9 @@ func albumTitle(a arr.Album) Title {
 	if a.Artist != nil {
 		t.Subtitle, t.ArtistMBID = a.Artist.ArtistName, a.Artist.ForeignArtistID
 	}
+	if t.Poster == "" {
+		t.Poster = coverArt(a.ForeignAlbumID) // the Cover Art Archive has most of them
+	}
 	if a.ID > 0 {
 		t.InLibrary, t.ArrID = true, a.ID
 		if st := a.Statistics; st != nil {
@@ -338,11 +341,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			sort.SliceStable(artists, func(i, j int) bool {
 				return strings.ToLower(artists[i].ArtistName) == ql && strings.ToLower(artists[j].ArtistName) != ql
 			})
+			var found []Title
 			for i, a := range artists {
 				if a.ForeignArtistID != "" && i < 6 {
-					out = append(out, artistTitle(a))
+					found = append(found, artistTitle(a))
 				}
 			}
+			out = append(out, s.artistPictures(ctx, found)...)
 			for i, a := range albums {
 				if a.ForeignAlbumID == "" || i >= 24 {
 					continue

@@ -122,3 +122,25 @@ func TestNavidromeFind(t *testing.T) {
 		t.Fatal("folding should match only the exact title")
 	}
 }
+
+func TestLidarrCoverPaths(t *testing.T) {
+	for in, want := range map[string]string{
+		"/MediaCover/189/poster.jpg?lastWrite=6392": "artist 189 poster jpg",
+		"/MediaCover/Albums/2357/cover.jpg":         "album 2357 cover jpg",
+		"/MediaCover/189/clearlogo.png":             "artist 189 clearlogo png",
+		"/MediaCover/../../etc/passwd":              "",
+	} {
+		m := lidarrCover.FindStringSubmatch(in)
+		got := ""
+		if m != nil {
+			what := "artist"
+			if m[1] != "" {
+				what = "album"
+			}
+			got = what + " " + m[2] + " " + m[3] + " " + m[4]
+		}
+		if got != want {
+			t.Errorf("%s = %q, want %q", in, got, want)
+		}
+	}
+}

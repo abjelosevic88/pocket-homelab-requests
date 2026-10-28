@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -82,6 +85,16 @@ func artistTitle(a arr.Artist) Title {
 	t := Title{Kind: "artist", Key: "artist:" + a.ForeignArtistID, MBID: a.ForeignArtistID, ArtistMBID: a.ForeignArtistID, Title: a.ArtistName,
 		Subtitle: firstNonEmpty(a.Disambiguation, a.ArtistType), Poster: firstNonEmpty(a.RemotePoster, arr.Pick(a.Images, "poster", "fanart")),
 		Backdrop: arr.Pick(a.Images, "fanart"), Overview: arr.Trim(a.Overview, 400), Genres: nonNil(a.Genres)}
+	if t.Poster == "" {
+		// an artist in Lidarr has only Lidarr's own copies; Requests passes them on
+		for _, k := range []string{"poster", "fanart"} {
+			for _, im := range a.Images {
+				if im.CoverType == k && strings.HasPrefix(im.URL, "/MediaCover/") && t.Poster == "" {
+					t.Poster = "/api/v1/img/lidarr?path=" + url.QueryEscape(im.URL)
+				}
+			}
+		}
+	}
 	if a.ID > 0 {
 		t.InLibrary, t.ArrID = true, a.ID
 	}
@@ -514,4 +527,85 @@ func (s *Server) musicLink(ctx context.Context, mbid, artist, title string) stri
 		return ""
 	}
 	return music + "/albums/" + id
+}
+
+// artistPictures gives artists the music database's photo (fanart.tv, the
+// same Lidarr shows), fetched side by side and cached; Lidarr's own copy or
+// nothing when it has none.
+func (s *Server) artistPictures(ctx context.Context, ts []Title) []Title {
+	type res struct {
+		i            int
+		poster, back string
+	}
+	ch := make(chan res, len(ts))
+	n := 0
+	for i, t := range ts {
+		n++
+		go func(i int, mbid string) {
+			cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+			defer cancel()
+			r := res{i: i}
+			if m, err := s.metaArtist(cctx, mbid); err == nil {
+				r.poster, r.back = arr.MetaPick(m.Images, "Poster", "Fanart"), arr.MetaPick(m.Images, "Fanart")
+			}
+			ch <- r
+		}(i, t.MBID)
+	}
+	for ; n > 0; n-- {
+		r := <-ch
+		if r.poster != "" {
+			ts[r.i].Poster = r.poster
+		}
+		if r.back != "" && ts[r.i].Backdrop == "" {
+			ts[r.i].Backdrop = r.back
+		}
+	}
+	return ts
+}
+
+var lidarrCover = regexp.MustCompile(`^/MediaCover/(Albums/)?(\d+)/([a-z]+)(?:-\d+)?\.(jpg|png)`)
+
+// handleLidarrImage passes on one of Lidarr's own pictures (it needs Lidarr's key).
+func (s *Server) handleLidarrImage(w http.ResponseWriter, r *http.Request) {
+	p := r.URL.Query().Get("path")
+	if !strings.HasPrefix(p, "/MediaCover/") || strings.Contains(p, "..") {
+		writeErr(w, http.StatusBadRequest, "not a Lidarr picture")
+		return
+	}
+	svc, err := s.boxService(r.Context(), "lidarr")
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	// /MediaCover/<id>/<type>.jpg or /MediaCover/Albums/<id>/<type>.jpg need a browser login;
+	// the API serves the same pictures (the 250-pixel copy) with the key
+	m := lidarrCover.FindStringSubmatch(p)
+	if m == nil {
+		writeErr(w, http.StatusBadRequest, "not a Lidarr picture")
+		return
+	}
+	what := "artist"
+	if m[1] != "" {
+		what = "album"
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, svc.base+"/api/v1/mediacover/"+what+"/"+m[2]+"/"+m[3]+"-250."+m[4], nil)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.Header.Set("X-Api-Key", svc.key)
+	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "Lidarr did not answer")
+		return
+	}
+	defer resp.Body.Close()
+	ct := resp.Header.Get("Content-Type")
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(ct, "image/") {
+		writeErr(w, http.StatusNotFound, "no such picture")
+		return
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	_, _ = io.Copy(w, io.LimitReader(resp.Body, 20<<20))
 }

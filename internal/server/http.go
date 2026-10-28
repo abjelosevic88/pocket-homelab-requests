@@ -67,6 +67,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/titles/series/{id}", s.handleSeriesTitle)
 			r.Get("/titles/album/{mbid}", s.handleAlbumTitle)
 			r.Get("/titles/artist/{mbid}", s.handleArtistTitle)
+			r.Get("/img/lidarr", s.handleLidarrImage)
 			r.Post("/titles/artist/{mbid}/request-albums", s.handleRequestDiscography)
 
 			// requests
