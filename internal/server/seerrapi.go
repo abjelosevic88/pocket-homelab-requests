@@ -210,6 +210,7 @@ func (s *Server) seerrRoutes(r chi.Router) {
 	r.Post("/request/{id}/{action}", s.seerrNeedAdmin(s.seerrDecide))
 
 	r.Get("/media", s.seerrNeedUser(s.seerrMedia))
+	r.Delete("/media/{id}/file", s.seerrNeedAdmin(s.seerrDeleteMediaFile))
 
 	r.Get("/issue", s.seerrNeedUser(s.seerrListIssues))
 	r.Get("/issue/count", s.seerrNeedUser(s.seerrIssueCount))

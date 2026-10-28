@@ -97,6 +97,9 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 | `POST /requests/{id}/import` | `{download_id}` → `{status}` |
 | `POST /requests/{id}/replace` | Remove the current download (blocklisted) and search for another |
 | `POST /requests/{id}/soulseek-retry` | Albums: take it off Soularr's blacklist (`failed_imports.json`) and search again (`can.soulseek_retry`) |
+| `GET /library/{movie\|series\|album}/{arrId}/removal` | What removing it would take: `{title, app, files, size, seasons: [{number, files, size}], recycle_bin, recycle_days, requests}` |
+| `POST /library/remove` | `{kind, arr_id, delete_files, exclude?, seasons?}` — take it off Radarr/Sonarr/Lidarr (with its files when asked; `exclude` adds an import-list exclusion); a show's `seasons` only switches those off and deletes their files. Every request for it shows "Removed from the server" |
+| `GET /downloads/sabnzbd`, `POST /downloads/sabnzbd/{pause\|resume}` | SABnzbd's speed, what's left, free space; pause / resume the queue |
 | `GET /problems` | `{items: Problem[]}` open reports |
 | `PUT /problems/{id}` | `{status: "resolved", reply?}` |
 | `GET /downloads` | `{items: [{app, id, kind, title, subtitle, poster, progress, eta, size, size_left, status, state, messages, client, indexer, quality, protocol, request_id}], errors}` |
@@ -133,7 +136,7 @@ ones waiting for them.
 | `GET /search?query=`, `/discover/trending`, `/discover/movies`, `/discover/movies/upcoming`, `/discover/tv`, `/discover/tv/upcoming` | TMDb-shaped results with `mediaInfo` (page 1 only). Show posters from TheTVDB come as full URLs |
 | `GET /movie/{tmdbId}`, `/tv/{tmdbId}`, `/tv/{tmdbId}/season/{n}` | from Radarr / Sonarr |
 | `GET /request`, `/request/count`, `/request/{id}`, `POST /request`, `DELETE /request/{id}`, `POST /request/{id}/approve\|decline\|retry` | requests (films and shows; a request's `media.id` is the request id) |
-| `GET /media` | the requests as media |
+| `GET /media`, `DELETE /media/{id}/file` | the requests as media; remove one from Radarr/Sonarr with its files (admins) |
 | `GET /issue`, `/issue/count`, `/issue/{id}`, `POST /issue`, `POST /issue/{id}/resolved\|open` | reported problems |
 | `GET /user`, `/user/{id}`, `/user/{id}/requests`, `/user/{id}/quota`, `POST /user/import-from-jellyfin` | people (import makes members named after their Jellyfin account) |
 | `GET /service/radarr`, `/service/sonarr`, `/service/{radarr\|sonarr}/0` | the defaults, quality profiles and root folders |

@@ -22,6 +22,43 @@ function stateText(d: QueueRow): { text: string; tone: string } {
   return { text: 'Downloading', tone: 'accent' }
 }
 
+interface SabStatus { status: string; paused: boolean; kbps: number; size_left_mb: number; time_left: string; items: number; disk_free_gb: number; disk_total_gb: number; speed_limit: string }
+interface SabInfo { connected: boolean; error?: string; status?: SabStatus; open_url?: string }
+
+function speed(kbps: number): string {
+  if (kbps >= 1024) return `${(kbps / 1024).toFixed(1)} MB/s`
+  return `${Math.round(kbps)} KB/s`
+}
+
+// SabBar is SABnzbd's own line: speed, what's left, free space, pause / resume.
+function SabBar() {
+  const [sab, setSab] = useState<SabInfo | null>(null)
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(() => api.get<SabInfo>(`${V1}/downloads/sabnzbd`).then(setSab).catch(() => setSab(null)), [])
+  useEffect(() => { load() }, [load])
+  usePoll(load, 5000, true)
+  if (!sab) return null
+  if (!sab.connected) return <p className="muted small quiet-note"><Icon name="info" size={13} />SABnzbd isn’t connected ({sab.error}). Set it up under Settings → Services to see usenet speed and free space here.</p>
+  const st = sab.status!
+  const act = async (a: 'pause' | 'resume') => { setBusy(true); try { setSab(await api.post<SabInfo>(`${V1}/downloads/sabnzbd/${a}`)) } finally { setBusy(false) } }
+  const freePct = st.disk_total_gb > 0 ? st.disk_free_gb / st.disk_total_gb : 1
+  return (
+    <div className="card sab-bar">
+      <span className="sab-name"><Icon name="download" size={15} />SABnzbd</span>
+      <span className={`pill tone-${st.paused ? 'warn' : st.status === 'Downloading' ? 'accent' : 'muted'}`}>{st.paused ? 'Paused' : st.status === 'Downloading' ? 'Downloading' : 'Idle'}</span>
+      <span className="sab-facts small muted tnum grow">
+        <span>{speed(st.kbps)}</span>
+        <span>{st.items} in the queue{st.size_left_mb > 0 ? ` · ${fmtSize(st.size_left_mb * 1024 * 1024)} left` : ''}{st.time_left && st.time_left !== '0:00:00' ? ` · ${st.time_left}` : ''}</span>
+        <span className={freePct < 0.1 ? 'warn-text' : ''}>{fmtSize(st.disk_free_gb * 1024 ** 3)} free</span>
+      </span>
+      {st.paused
+        ? <button type="button" className="btn sm" disabled={busy} onClick={() => act('resume')}><Icon name="play" size={13} />Resume</button>
+        : <button type="button" className="btn sm" disabled={busy} onClick={() => act('pause')}><Icon name="pause" size={13} />Pause</button>}
+      {sab.open_url && <a className="btn sm ghost" href={sab.open_url} target="_blank" rel="noreferrer"><Icon name="external" size={13} />Open</a>}
+    </div>
+  )
+}
+
 export default function Downloads() {
   const { user } = useApp()
   const [data, setData] = useState<{ items: QueueRow[]; errors?: Record<string, string> } | null>(null)
@@ -34,6 +71,7 @@ export default function Downloads() {
   return (
     <div className="stack loose">
       <PageHeader title="Downloads" sub="Everything Radarr, Sonarr and Lidarr are fetching right now. Refreshes every few seconds." />
+      <SabBar />
       {err && <div className="callout danger"><Icon name="alert" size={15} /><span>{err}</span></div>}
       {errors.length > 0 && <p className="muted small quiet-note"><Icon name="info" size={13} />{errors.map(([k, v]) => `${APP[k] || k}: ${v}`).join(' · ')}</p>}
       {!data && !err && <Loading />}

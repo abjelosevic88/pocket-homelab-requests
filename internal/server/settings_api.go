@@ -370,6 +370,12 @@ func testService(ctx context.Context, name, base, key, ua string) (string, error
 			return "", err
 		}
 		return "Jellyseerr " + v + ", direct connection", nil
+	case "sabnzbd":
+		v, err := arr.NewSabnzbd(base, key).Version(ctx)
+		if err != nil {
+			return "", err
+		}
+		return "SABnzbd " + v + ", direct connection", nil
 	case "slskd":
 		v, err := arr.NewSlskd(base, key).Version(ctx)
 		if err != nil {

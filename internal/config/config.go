@@ -177,7 +177,7 @@ func Load() (*Config, error) {
 	if c.CoreAppURL == "" {
 		c.CoreAppURL = c.BaseURL
 	}
-	for _, n := range []string{"RADARR", "SONARR", "LIDARR", "PROWLARR", "JELLYFIN", "JELLYSEERR", "TMDB", "SLSKD"} {
+	for _, n := range []string{"RADARR", "SONARR", "LIDARR", "PROWLARR", "JELLYFIN", "JELLYSEERR", "TMDB", "SLSKD", "SABNZBD"} {
 		sv := ServiceEnv{URL: strings.TrimRight(env(n+"_URL", ""), "/"), Key: env(n+"_API_KEY", ""), PublicURL: strings.TrimRight(env(n+"_PUBLIC_URL", ""), "/")}
 		if sv.URL != "" || sv.Key != "" {
 			c.Services[strings.ToLower(n)] = sv

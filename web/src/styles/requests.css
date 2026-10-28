@@ -357,3 +357,16 @@ a.list-row:hover { background: var(--surface-2); }
   .sec-head .sel { min-width: 140px; }
   .home-title { font-size: 21px; }
 }
+
+/* remove from the server */
+.setting-line { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+.seg-row { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.radio { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.radio input, .check-list input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.check-list { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.check-list .list-row { cursor: pointer; gap: 10px; }
+
+/* SABnzbd bar on Downloads */
+.sab-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; }
+.sab-bar .sab-name { font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
+.sab-bar .sab-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }

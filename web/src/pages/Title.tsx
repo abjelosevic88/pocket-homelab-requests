@@ -8,6 +8,8 @@ import { Icon } from '../components/icons'
 import { announceChange, useCrumb } from '../components/Layout'
 import { Bar, detailLine, Poster, RequestModal, StatePill } from '../components/media'
 import { Empty, Loading, useAsync } from '../components/ui'
+import { RemoveModal } from '../components/RemoveModal'
+import { useApp } from '../lib/app-context'
 
 function titleAPI(kind: string, id: string): string {
   if (kind === 'series' && id.startsWith('tmdb-')) return `${V1}/titles/series/tmdb/${id.slice(5)}`
@@ -19,6 +21,8 @@ export default function TitlePage() {
   const navigate = useNavigate()
   const { data: t, error, reload } = useAsync(() => api.get<TitleDetail>(titleAPI(kind, id)), [kind, id])
   const [asking, setAsking] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const { user } = useApp()
   useCrumb(t?.title)
   if (error) return <Empty title="Couldn’t load this title" icon="alert">{error}</Empty>
   if (!t) return <Loading />
@@ -55,6 +59,7 @@ export default function TitlePage() {
               {t.available && !t.open_url && <span className="pill tone-ok">Already here</span>}
               {canAsk && <button type="button" className={`btn ${t.available ? '' : 'primary'}`} onClick={() => setAsking(true)}><Icon name="plus" size={15} />{mine ? 'Ask for more seasons' : 'Request'}</button>}
               {!mine && !t.available && t.requested_by_others && <span className="muted small">Someone already asked for this — your request joins theirs.</span>}
+              {user?.role === 'admin' && t.in_library && t.arr_id > 0 && <button type="button" className="btn ghost" onClick={() => setRemoving(true)}><Icon name="trash" size={14} />Remove from the server</button>}
               {t.trailer && <a className="btn ghost" href={`https://www.youtube.com/watch?v=${t.trailer}`} target="_blank" rel="noreferrer"><Icon name="video" size={15} />Trailer</a>}
             </div>
             {mine && <MyRequest r={mine} />}
@@ -92,6 +97,7 @@ export default function TitlePage() {
           <ul className="list">{t.requests.map(r => <li key={r.id}><Link to={`/requests/${r.id}`} className="list-row"><span className="grow">{fmtDate(r.created_at)}{r.seasons && r.seasons !== 'all' ? ` · seasons ${r.seasons}` : ''}</span><StatePill r={r} /></Link></li>)}</ul>
         </section>}
       </div>
+      {removing && <RemoveModal kind={t.kind} arrId={t.arr_id} onClose={() => setRemoving(false)} onDone={() => { setRemoving(false); announceChange(); reload() }} />}
       {asking && <RequestModal t={t} onClose={() => setAsking(false)} onDone={r => { setAsking(false); announceChange(); reload(); if (!mine) navigate(`/requests/${r.id}`) }} />}
     </div>
   )

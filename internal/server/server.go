@@ -274,6 +274,7 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 			{Type: "jellyfin", Reason: "Check that what arrived can really be watched, and start a library scan when it can't"},
 			{Type: "jellyseerr", Reason: "Bring over the requests made in Jellyseerr"},
 			{Type: "tmdb", Reason: "Trending and popular shows to discover"},
+			{Type: "sabnzbd", Reason: "Show usenet download speed, time left and free space, and pause or resume it"},
 			{Type: "slskd", Reason: "Show Soulseek downloads of requested albums (Soularr fetches them for Lidarr)"},
 		},
 	}

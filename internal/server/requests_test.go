@@ -23,6 +23,7 @@ type fakeRadarr struct {
 	mu       sync.Mutex
 	added    map[int64]bool
 	commands []string
+	deleted  []string // the DELETE queries
 }
 
 func (f *fakeRadarr) handler() http.Handler {
@@ -73,6 +74,16 @@ func (f *fakeRadarr) handler() http.Handler {
 		j(w, map[string]any{"id": 1})
 	})
 	mux.HandleFunc("GET /api/v3/queue", func(w http.ResponseWriter, r *http.Request) { j(w, map[string]any{"records": []any{}}) })
+	mux.HandleFunc("GET /api/v3/config/mediamanagement", func(w http.ResponseWriter, r *http.Request) {
+		j(w, map[string]any{"recycleBin": "", "recycleBinCleanupDays": 7})
+	})
+	mux.HandleFunc("DELETE /api/v3/movie/7", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		f.deleted = append(f.deleted, r.URL.RawQuery)
+		f.added[438631] = false
+		f.mu.Unlock()
+		w.WriteHeader(200)
+	})
 	mux.HandleFunc("GET /api/v3/history/movie", func(w http.ResponseWriter, r *http.Request) { j(w, []any{}) })
 	return mux
 }
@@ -423,3 +434,47 @@ func TestQueueView(t *testing.T) {
 }
 
 func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestRemoveFromServer(t *testing.T) {
+	tb := newTestBox(t)
+	ctx := context.Background()
+	code, body := tb.do(tb.bobTok, "POST", "/api/v1/requests", map[string]any{"kind": "movie", "tmdb_id": 438631})
+	if code != http.StatusCreated {
+		t.Fatalf("create = %d %v", code, body)
+	}
+	bobReq := int64(body["id"].(float64))
+	tb.do(tb.aliceTok, "POST", "/api/v1/requests/"+itoa64(bobReq)+"/approve", nil)
+	waitFor(t, "the film to reach Radarr", func() bool {
+		r, err := tb.st.GetRequest(ctx, tb.bob.ID, bobReq)
+		return err == nil && r.ArrID == 7
+	})
+	// members can't remove things from the server
+	if code, _ := tb.do(tb.bobTok, "GET", "/api/v1/library/movie/7/removal", nil); code != http.StatusForbidden {
+		t.Fatalf("bob preview = %d", code)
+	}
+	if code, _ := tb.do(tb.bobTok, "POST", "/api/v1/library/remove", map[string]any{"kind": "movie", "arr_id": 7, "delete_files": true}); code != http.StatusForbidden {
+		t.Fatalf("bob remove = %d", code)
+	}
+	// the preview says how many asked (no names) and that there is no recycle bin
+	_, pv := tb.do(tb.aliceTok, "GET", "/api/v1/library/movie/7/removal", nil)
+	if pv["title"] != "Dune" || pv["requests"].(float64) != 1 || pv["recycle_bin"] != "" {
+		t.Fatalf("preview = %v", pv)
+	}
+	if code, out := tb.do(tb.aliceTok, "POST", "/api/v1/library/remove", map[string]any{"kind": "movie", "arr_id": 7, "delete_files": true, "exclude": true}); code != 200 {
+		t.Fatalf("remove = %d %v", code, out)
+	}
+	tb.radarr.mu.Lock()
+	q := strings.Join(tb.radarr.deleted, "|")
+	tb.radarr.mu.Unlock()
+	if !strings.Contains(q, "deleteFiles=true") || !strings.Contains(q, "addImportExclusion=true") {
+		t.Fatalf("radarr got %q", q)
+	}
+	r, _ := tb.st.GetRequest(ctx, tb.bob.ID, bobReq)
+	if r.State != "removed" {
+		t.Fatalf("bob's request = %s", r.State)
+	}
+	evs, _ := tb.st.Events(ctx, tb.bob.ID, bobReq)
+	if last := evs[len(evs)-1]; last.Kind != "removed" || !strings.Contains(last.Message, "removed it from the server") {
+		t.Fatalf("last event = %+v", last)
+	}
+}

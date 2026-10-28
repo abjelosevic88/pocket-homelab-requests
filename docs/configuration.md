@@ -20,6 +20,7 @@ Environment variables; every one has a default. Personal settings (formats, noti
 | `PROWLARR_URL`, `PROWLARR_API_KEY` | – | Which indexers are down (Downloads page) |
 | `JELLYFIN_URL`, `JELLYFIN_API_KEY` | – | "Can it really be watched?", Watch links, library scans |
 | `JELLYSEERR_URL`, `JELLYSEERR_API_KEY` | – | Only to bring Jellyseerr's requests over (Settings → Backup & data) |
+| `SABNZBD_URL`, `SABNZBD_API_KEY` | – | SABnzbd: usenet speed, time left and free space on Downloads, pause / resume |
 | `SLSKD_URL`, `SLSKD_API_KEY` | – | slskd: Soulseek downloads of requested albums (when Soularr fetches Lidarr's wanted albums), on the request and the Downloads page |
 | `SOULARR_DIR` | – | Soularr's data folder (mount it, e.g. `/soularr`): albums on its `failed_imports.json` blacklist show as "needs a look", and admins can let Soulseek try again |
 | `SEERR_HOSTS` | – | Host names (comma list) whose `/api/v1` is the Jellyseerr-compatible API — point Jellyseerr's old address here and its apps keep working; other pages there redirect to `BASE_URL` |

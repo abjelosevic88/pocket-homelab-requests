@@ -170,6 +170,10 @@ type Settings struct {
 	SlskdURL         string `json:"slskd_url"`
 	SlskdKey         string `json:"slskd_key"`
 	SlskdPublic      string `json:"slskd_public_url"`
+	SabnzbdMode      string `json:"sabnzbd_mode"`
+	SabnzbdURL       string `json:"sabnzbd_url"`
+	SabnzbdKey       string `json:"sabnzbd_key"`
+	SabnzbdPublic    string `json:"sabnzbd_public_url"`
 
 	// The Jellyseerr-compatible API's key (sha256, and its first characters to recognise it).
 	SeerrKeyHash string `json:"seerr_key_hash"`
