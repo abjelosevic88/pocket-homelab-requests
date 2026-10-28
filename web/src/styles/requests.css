@@ -109,7 +109,7 @@ a.list-row:hover { background: var(--surface-2); }
 @media (max-width: 640px) { .three-col.tight { grid-template-columns: 1fr; } }
 
 /* ================= Pocket Requests: posters, pills, cards, pages ================= */
-.block { display: block; }
+.block:not(.btn) { display: block; }
 .warn-text { color: var(--warning); }
 .flush-card { overflow: hidden; }
 .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
