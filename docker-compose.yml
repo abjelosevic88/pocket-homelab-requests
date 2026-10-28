@@ -1,0 +1,32 @@
+# Pocket Requests — ask for films, shows and albums (Go + SQLite). One container, one volume.
+# Radarr, Sonarr and Lidarr stay the engines; give their addresses and API keys here
+# (or connect the app to Pocket Core, which hands them over).
+services:
+  pocket-requests:
+    image: ghcr.io/abjelosevic88/pocket-homelab-requests:latest
+    container_name: pocket-requests
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: ${TZ:-UTC}
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      RADARR_URL: ${RADARR_URL:-}
+      RADARR_API_KEY: ${RADARR_API_KEY:-}
+      SONARR_URL: ${SONARR_URL:-}
+      SONARR_API_KEY: ${SONARR_API_KEY:-}
+      LIDARR_URL: ${LIDARR_URL:-}
+      LIDARR_API_KEY: ${LIDARR_API_KEY:-}
+      JELLYFIN_URL: ${JELLYFIN_URL:-}
+      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:-}
+      JELLYSEERR_URL: ${JELLYSEERR_URL:-}
+      JELLYSEERR_API_KEY: ${JELLYSEERR_API_KEY:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      NOTIFY_URL: ${NOTIFY_URL:-}
+      # CORE_URL: http://pocket-core:8080
+      # CORE_REGISTRATION_KEY: ${CORE_REGISTRATION_KEY:-}
+    volumes:
+      - ./data:/data

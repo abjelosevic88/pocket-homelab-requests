@@ -1,0 +1,5 @@
+# Pocket Requests behind Caddy. Homepage widgets and linked apps send their own
+# bearer token to /api/*.
+requests.example.com {
+	reverse_proxy pocket-requests:8080
+}

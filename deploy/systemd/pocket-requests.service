@@ -1,0 +1,23 @@
+[Unit]
+Description=Pocket Requests — ask for films, shows and albums
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pocket-requests
+Group=pocket-requests
+ExecStart=/usr/local/bin/pocket-requests
+Environment=DATA_DIR=/var/lib/pocket-requests
+Environment=PORT=8080
+Environment=BASE_URL=https://requests.example.com
+Environment=SECURE_COOKIES=true
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pocket-requests
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
