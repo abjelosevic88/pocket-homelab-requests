@@ -38,8 +38,20 @@ func (s *Server) public(ctx context.Context, r store.Request) publicRequest {
 	admin := u != nil && u.Role == "admin"
 	p := publicRequest{Request: r}
 	if r.State == "available" || r.State == "partial" || (r.State == "importing" && r.JellyfinID != "") {
-		_, jf, _ := s.jellyfinIndex(ctx, false)
-		p.OpenURL = openURL(r.Kind, r.JellyfinID, s.publicSibling(ctx, "watch"), jf, true)
+		idx, jf, _ := s.jellyfinIndex(ctx, false)
+		jid := r.JellyfinID
+		if jid == "" && idx != nil { // e.g. brought over from Jellyseerr already here, never tracked
+			switch r.Kind {
+			case "movie":
+				jid = idx.Movie(r.TMDBID, r.IMDBID)
+			case "series":
+				jid = idx.Series(r.TVDBID, r.TMDBID, r.IMDBID)
+			case "album":
+				jid = idx.Album(r.MBID)
+			}
+			p.JellyfinID = jid
+		}
+		p.OpenURL = openURL(r.Kind, jid, s.publicSibling(ctx, "watch"), jf, true)
 		if r.Kind == "album" {
 			if link := s.musicLink(ctx, r.MBID, r.Subtitle, r.Title); link != "" {
 				p.OpenURL = link
