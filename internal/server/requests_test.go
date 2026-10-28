@@ -494,3 +494,33 @@ func TestFakeReleaseIsStuck(t *testing.T) {
 		t.Fatal("a normal pending import isn't stuck")
 	}
 }
+
+// The day view counts a request on the caller's calendar day: 23:30 UTC is
+// the next day two hours east, and only the owner sees it.
+func TestDayUsesTheCallersZone(t *testing.T) {
+	tb := newTestBox(t)
+	ctx := context.Background()
+	_ = tb.st.CreateRequest(ctx, tb.bob.ID, &store.Request{Kind: "movie", TMDBID: 7, Title: "Late Night", Status: "approved", CreatedAt: "2026-10-20T23:30:00Z"})
+	count := func(tok, path string) int {
+		code, out := tb.do(tok, "GET", path, nil)
+		if code != 200 {
+			t.Fatalf("%s: %d %v", path, code, out)
+		}
+		return len(out["requested"].([]any))
+	}
+	if n := count(tb.bobTok, "/api/v1/day/2026-10-21?tz=120"); n != 1 {
+		t.Errorf("east of UTC: %d requests on the 21st", n)
+	}
+	if n := count(tb.bobTok, "/api/v1/day/2026-10-20?tz=0"); n != 1 {
+		t.Errorf("UTC: %d requests on the 20th", n)
+	}
+	if n := count(tb.bobTok, "/api/v1/day/2026-10-20?tz=120"); n != 0 {
+		t.Errorf("east of UTC: %d requests on the 20th", n)
+	}
+	if n := count(tb.aliceTok, "/api/v1/day/2026-10-21?tz=120"); n != 0 {
+		t.Errorf("someone else's day: %d requests", n)
+	}
+	if code, _ := tb.do(tb.bobTok, "GET", "/api/v1/day/2026-10-21?tz=x", nil); code != 400 {
+		t.Errorf("bad tz: %d", code)
+	}
+}

@@ -83,7 +83,7 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 | `GET /upcoming?days=60` | `{items: [{date, kind, title, subtitle, poster, request_id, has_file}]}` — what your requested shows and films release next |
 | `GET /activity?limit=50` | `{items: [Event + {title, poster, kind}]}` |
 | `GET /overlay?from=&to=` | Same items as upcoming, for Pocket Calendar |
-| `GET /day/{date}` | `{date, requested: Request[], arrived: Request[]}` for Pocket Day |
+| `GET /day/{date}?tz=` | `{date, requested: Request[], arrived: Request[]}` for Pocket Day (`tz` = minutes from UTC, default the server zone) |
 | `POST /ai/suggest` | `{prompt, kind?}` → `{items: Title[], note}` — Pocket AI (or OpenAI) suggests, the services look up |
 
 ## Admins

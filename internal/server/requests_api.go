@@ -1822,7 +1822,17 @@ func (s *Server) handleOverlay(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDay(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	date := chiParam(r, "date")
-	d, err := time.ParseInLocation("2006-01-02", date, time.Local)
+	// tz is the caller's offset from UTC in minutes (Pocket Day sends its own), else the server's zone
+	loc := time.Local
+	if v := r.URL.Query().Get("tz"); v != "" {
+		m, err := strconv.Atoi(v)
+		if err != nil || m < -14*60 || m > 14*60 {
+			writeErr(w, http.StatusBadRequest, "tz is minutes from UTC")
+			return
+		}
+		loc = time.FixedZone("", m*60)
+	}
+	d, err := time.ParseInLocation("2006-01-02", date, loc)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "date is YYYY-MM-DD")
 		return
