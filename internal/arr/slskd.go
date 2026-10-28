@@ -48,11 +48,26 @@ func (c *Slskd) get(ctx context.Context, path string, out any) error {
 
 // Version checks the connection.
 func (c *Slskd) Version(ctx context.Context) (string, error) {
+	// Older slskd sends "version" as a string; 0.26+ sends an object
+	// ({"current": "0.26.0.0", "full": "...", "latest": ...}).
 	var out struct {
-		Version string `json:"version"`
+		Version json.RawMessage `json:"version"`
 	}
-	err := c.get(ctx, "/application", &out)
-	return out.Version, err
+	if err := c.get(ctx, "/application", &out); err != nil {
+		return "", err
+	}
+	var s string
+	if json.Unmarshal(out.Version, &s) == nil {
+		return s, nil
+	}
+	var v struct {
+		Current string `json:"current"`
+		Full    string `json:"full"`
+	}
+	if err := json.Unmarshal(out.Version, &v); err != nil {
+		return "", fmt.Errorf("slskd: unexpected version: %w", err)
+	}
+	return firstNonEmpty(v.Current, v.Full), nil
 }
 
 // SoulseekDownload is one folder being fetched from one Soulseek user.
