@@ -5,16 +5,16 @@ import { api, ApiError, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import { ago } from '../lib/format'
 import { etaText, KIND_ICON, KIND_LABEL, shownState, stateLabel, stateTone, titleBadge, titleURL } from '../lib/states'
-import type { Kind, Request, ServiceOptions, TitleDetail, Title } from '../lib/types'
+import type { Kind, Request, ServiceOptions, TitleDetail, Title, TitleKind } from '../lib/types'
 import { Icon } from './icons'
 import { Field, Modal, useToast } from './ui'
 import { Select } from './Select'
 
-export function Poster({ src, kind, alt = '', size = 'md', className = '' }: { src?: string; kind: Kind; alt?: string; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string }) {
+export function Poster({ src, kind, alt = '', size = 'md', className = '' }: { src?: string; kind: TitleKind; alt?: string; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string }) {
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [src])
   return (
-    <span className={`poster ${size} ${kind === 'album' ? 'square' : ''} ${className}`}>
+    <span className={`poster ${size} ${kind === 'album' ? 'square' : kind === 'artist' ? 'square round' : ''} ${className}`}>
       {src && !broken ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setBroken(true)} /> : <span className="poster-ph"><Icon name={KIND_ICON[kind]} size={size === 'xs' ? 14 : size === 'sm' ? 18 : 26} /></span>}
     </span>
   )
@@ -54,7 +54,7 @@ export function TitleCard({ t }: { t: Title }) {
         {b && <span className={`tcard-badge tone-${b.tone}`}>{b.label}</span>}
       </span>
       <span className="tcard-title ellipsis">{t.title}</span>
-      <span className="tcard-sub ellipsis">{[t.subtitle && t.kind === 'album' ? t.subtitle : '', t.year || ''].filter(Boolean).join(' · ') || KIND_LABEL[t.kind]}</span>
+      <span className="tcard-sub ellipsis">{[t.subtitle && (t.kind === 'album' || t.kind === 'artist') ? t.subtitle : '', t.year || ''].filter(Boolean).join(' · ') || KIND_LABEL[t.kind]}</span>
     </Link>
   )
 }

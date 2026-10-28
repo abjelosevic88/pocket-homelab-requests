@@ -325,9 +325,19 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	if kind == "" || kind == "all" || kind == "album" {
 		run("lidarr", func(c *arr.Client) ([]Title, error) {
-			_, albums, err := c.SearchMusic(ctx, q)
+			artists, albums, err := c.SearchMusic(ctx, q)
 			rankAlbums(albums, q)
 			out := []Title{}
+			// artists first: the one whose name is the search, then the rest
+			ql := strings.ToLower(strings.TrimSpace(q))
+			sort.SliceStable(artists, func(i, j int) bool {
+				return strings.ToLower(artists[i].ArtistName) == ql && strings.ToLower(artists[j].ArtistName) != ql
+			})
+			for i, a := range artists {
+				if a.ForeignArtistID != "" && i < 6 {
+					out = append(out, artistTitle(a))
+				}
+			}
 			for i, a := range albums {
 				if a.ForeignAlbumID == "" || i >= 24 {
 					continue
@@ -372,6 +382,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			out = append(out, ss[i])
 		}
 	}
+	out = append(out, byKind["artist"]...)
 	out = append(out, byKind["album"]...)
 	writeJSON(w, http.StatusOK, map[string]any{"results": s.annotate(ctx, actorID(ctx), out), "errors": errs})
 }
@@ -734,59 +745,6 @@ func (s *Server) handleSeriesTitle(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(seasons, func(i, j int) bool { return seasons[i].Number < seasons[j].Number })
 	writeJSON(w, http.StatusOK, titleDetail(t, map[string]any{"network": sr.Network, "certification": sr.Certification, "seasons": seasons,
 		"next_airing": sr.NextAiring, "requests": reqs, "known_episodes": known}))
-}
-
-func (s *Server) handleAlbumTitle(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	mbid := chi.URLParam(r, "mbid")
-	c, err := s.arrFor(ctx, "lidarr")
-	if err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "Music needs Lidarr: "+err.Error())
-		return
-	}
-	al, err := c.AlbumByMBID(ctx, mbid)
-	if err == nil && al != nil {
-		if full, err := c.GetAlbum(ctx, al.ID); err == nil {
-			if full.Artist == nil {
-				full.Artist = al.Artist
-			}
-			al = full
-		}
-	}
-	if al == nil {
-		if al, err = c.LookupAlbum(ctx, mbid); err != nil {
-			writeErr(w, http.StatusNotFound, err.Error())
-			return
-		}
-	}
-	if al.Artist == nil && al.ArtistID > 0 {
-		var a arr.Artist
-		if c.Get(ctx, "/artist/"+strconv.FormatInt(al.ArtistID, 10), nil, &a) == nil {
-			al.Artist = &a
-		}
-	}
-	t := s.annotate(ctx, actorID(ctx), []Title{albumTitle(*al)})[0]
-	tracks := 0
-	if al.Statistics != nil {
-		tracks = al.Statistics.TotalTrackCount
-	}
-	artist := ""
-	if al.Artist != nil {
-		artist = al.Artist.ArtistName
-	}
-	writeJSON(w, http.StatusOK, titleDetail(t, map[string]any{"artist": artist, "album_type": al.AlbumType, "tracks": tracks,
-		"duration_min": al.Duration / 60000, "requests": s.ownTitleRequests(ctx, t)}))
-}
-
-// titleDetail is a Title with a title page's extra fields beside it.
-func titleDetail(t Title, extra map[string]any) map[string]any {
-	b, _ := json.Marshal(t)
-	out := map[string]any{}
-	_ = json.Unmarshal(b, &out)
-	for k, v := range extra {
-		out[k] = v
-	}
-	return out
 }
 
 // ownTitleRequests lists the caller's requests for a title, newest first.

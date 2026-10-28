@@ -65,12 +65,14 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 | Call | |
 |---|---|
 | `GET /home` | `{counts: {pending, on_the_way, available, attention, closed}, on_the_way: Request[], arrived: Request[], services: {movies, series, music, tv_discover}, admin?: {pending, problems, care_alerts, downloads}}` |
-| `GET /search?q=&kind=all\|movie\|series\|album` | `{results: Title[], errors: {radarr?: "…", sonarr?: "…", lidarr?: "…"}}` |
+| `GET /search?q=&kind=all\|movie\|series\|album` | `{results: Title[], errors: {radarr?: "…", sonarr?: "…", lidarr?: "…"}}` — music (`album`) also returns artists (`kind: "artist"`) |
 | `GET /discover` | `{rows: [{key, title, kind, disabled: "" \| "why"}]}` — the rows to show |
 | `GET /discover/{key}` | `{items: Title[], disabled: ""}`; keys `movie_trending`, `movie_popular`, `movie_recommended`, `tv_trending`, `tv_popular`, `tv_top_rated`, `music_new` |
 | `GET /titles/movie/{tmdbId}` | Title + `{certification, trailer, studio, ratings: {imdb, tmdb, rotten_tomatoes, metacritic}, dates: {cinema, digital, physical}, requests: Request[]}` |
 | `GET /titles/series/{tvdbId}` (or `/titles/series/tmdb/{tmdbId}`) | Title + `{network, seasons: [{number, episodes, aired, have, monitored, next_airing, requested}], requests: Request[]}` |
-| `GET /titles/album/{mbid}` | Title + `{artist, album_type, tracks, requests: Request[]}` |
+| `GET /titles/album/{mbid}` | Title + `{artist: {mbid, name, poster, overview, genres, in_library}, album_type, tracks: [{disc, number, title, duration_ms, has_file?}], discs, length_ms, edition: {title, label, country, format, track_count, followed?}, editions, files?: {count, size, quality}, links, more_by_artist: Title[], requests}` |
+| `GET /titles/artist/{mbid}` | An artist (kind `artist`) + `{artist_type, sections: [{key: albums\|eps\|singles\|live\|compilations\|other, title, items: Title[], here}], links, missing_albums, library_albums}` — the discography from Lidarr's metadata server |
+| `POST /titles/artist/{mbid}/request-albums` | Ask for every studio album of theirs that isn't here or asked for yet → `{asked, skipped, stopped}` |
 | `POST /requests` | `{kind, tmdb_id?, tvdb_id?, mbid?, artist_mbid?, seasons?: "all" \| [1,2], note?, profile_id?, root_folder?}` → 201 Request. Admins' requests are approved at once, members' per the box policy. 409 `{error, request_id}` when you already asked; 429 when the weekly limit is reached (`error` says when it frees up). `profile_id`/`root_folder` are admin-only |
 | `GET /requests?status=&state=open\|attention\|available\|…&kind=&q=&limit=&offset=` | `{items: Request[], total, counts}` |
 | `GET /requests/{id}` | `{request, events: Event[], problems: Problem[], download: {progress, eta, size, size_left, status, client, indexer, quality, protocol, messages} \| null}` |

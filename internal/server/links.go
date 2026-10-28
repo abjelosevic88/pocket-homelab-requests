@@ -32,7 +32,7 @@ var linkRoutes = []linkRoute{
 	{"GET", regexp.MustCompile(`^/api/v1/(home|requests|upcoming|overlay|activity|search|discover)$`), "requests:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/requests/\d+$`), "requests:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/discover/[a-z_]+$`), "requests:read"},
-	{"GET", regexp.MustCompile(`^/api/v1/titles/(movie/\d+|series/\d+|series/tmdb/\d+|album/[0-9a-f-]{36})$`), "requests:read"},
+	{"GET", regexp.MustCompile(`^/api/v1/titles/(movie/\d+|series/\d+|series/tmdb/\d+|album/[0-9a-f-]{36}|artist/[0-9a-f-]{36})$`), "requests:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/(day|summary)/\d{4}-\d{2}-\d{2}$`), "requests:read"},
 	{"POST", regexp.MustCompile(`^/api/v1/requests$`), "requests:write"},
 	{"PUT DELETE", regexp.MustCompile(`^/api/v1/requests/\d+$`), "requests:write"},

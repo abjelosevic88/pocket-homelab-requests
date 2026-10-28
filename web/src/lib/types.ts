@@ -2,6 +2,8 @@ export interface User { id: number; email: string; name: string; role: 'admin' |
 export interface APIToken { id: number; user_id: number; name: string; prefix: string; last_used_at: string | null; created_at: string }
 
 export type Kind = 'movie' | 'series' | 'album'
+/** What a search result or title page can be: artists have pages, but aren't asked for themselves. */
+export type TitleKind = Kind | 'artist'
 export type ServiceMode = '' | 'auto' | 'core' | 'direct' | 'off'
 export type CareMode = 'off' | 'watch' | 'fix'
 export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb' | 'slskd' | 'sabnzbd'
@@ -62,7 +64,7 @@ export interface Request {
 export interface TitleRequest { id: number; status: ReqStatus; state: ReqState; progress: number }
 
 export interface Title {
-  kind: Kind; key: string
+  kind: TitleKind; key: string
   tmdb_id: number; tvdb_id: number; imdb_id: string; mbid: string; artist_mbid: string
   title: string; subtitle: string; year: number; poster: string; backdrop: string; overview: string
   genres?: string[]; rating?: number; runtime?: number; status?: string; release_date?: string
@@ -81,8 +83,19 @@ export interface TitleDetail extends Title {
   network?: string
   seasons?: SeasonInfo[]
   known_episodes?: boolean // false: not in Sonarr yet, so episode counts are unknown
-  artist?: string; album_type?: string; tracks?: number
+  artist?: { mbid: string; name: string; poster: string; overview: string; genres: string[]; in_library: boolean; disambiguation: string }
   requests: Request[]
+  // albums
+  album_type?: string; editions?: number; length_ms?: number; duration_min?: number
+  edition?: { title: string; country: string; label: string; format: string; track_count: number; date?: string; followed?: boolean }
+  files?: { count: number; size: number; quality: string }
+  tracks?: { disc: number; number: string; title: string; duration_ms: number; has_file?: boolean }[]
+  discs?: { number: number; format: string; name: string }[]
+  more_by_artist?: Title[]
+  links?: { name: string; url: string }[]
+  // artists
+  artist_type?: string; logo?: string; missing_albums?: number; library_albums?: number; lidarr?: boolean
+  sections?: { key: string; title: string; items: Title[]; here: number }[]
 }
 
 export interface ReqEvent { id: number; request_id: number; at: string; kind: string; message: string }

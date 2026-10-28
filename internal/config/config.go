@@ -64,6 +64,10 @@ type Config struct {
 	// albums it gave up on) when Soularr fetches Lidarr's albums from Soulseek.
 	SoularrDir string
 
+	// MusicMeta is the music database artist and album pages read (Lidarr's
+	// metadata server; "" = the public one).
+	MusicMeta string
+
 	// SeerrHosts are host names whose /api/v1 is the Jellyseerr-compatible API
 	// (e.g. the old Jellyseerr address, pointed here at the switch-over).
 	SeerrHosts []string
@@ -164,6 +168,7 @@ func Load() (*Config, error) {
 		TrackEvery: envDuration("TRACK_EVERY", time.Minute),
 		CareEvery:  envDuration("CARE_EVERY", 10*time.Minute),
 		SoularrDir: strings.TrimRight(env("SOULARR_DIR", ""), "/"),
+		MusicMeta:  strings.TrimRight(env("MUSIC_METADATA_URL", ""), "/"),
 		SeerrHosts: splitList(env("SEERR_HOSTS", "")),
 
 		UserAgent: env("USER_AGENT", "PocketRequests/1.0 (+https://github.com/abjelosevic88/pocket-homelab-requests)"),

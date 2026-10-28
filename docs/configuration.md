@@ -28,6 +28,7 @@ Environment variables; every one has a default. Personal settings (formats, noti
 | `*_PUBLIC_URL` | – | Where people open a service, when it differs from the address the app uses |
 | `NOTIFY_URL`, `NOTIFY_FORMAT` | – | Apprise (`…/notify/key`), ntfy topic URL or JSON webhook; format `apprise`/`ntfy`/`json` |
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | – | "Suggest something" and questions without Pocket AI |
+| `MUSIC_METADATA_URL` | Lidarr's public metadata server | Where artist and album pages read discographies, editions and track lists |
 | `TRACK_EVERY` | `1m` | How often open requests are compared with Radarr/Sonarr/Lidarr |
 | `CARE_EVERY` | `10m` | How often library care runs |
 | `CORE_URL`, `CORE_REGISTRATION_KEY`, `CORE_APP_URL` | – | Pocket Core |

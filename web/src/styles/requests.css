@@ -375,3 +375,36 @@ a.list-row:hover { background: var(--surface-2); }
 a.rrow, a.list-row, a.tcard, a.way-card, a.my-request, a.dl-row, a.sb-sum-row, a.home-pending, a.req-poster, a.ready-art, a.callout, a.appr-title,
 a.rrow:hover, a.list-row:hover, a.tcard:hover, a.way-card:hover, a.my-request:hover, a.dl-row:hover, a.sb-sum-row:hover, a.home-pending:hover,
 a.req-poster:hover, a.ready-art:hover, a.callout:hover, a.appr-title:hover { text-decoration: none; }
+
+/* artists and albums */
+.poster.round { border-radius: 50%; }
+.poster.round img { border-radius: 50%; }
+.title-by { font-size: 15px; margin: -2px 0 2px; }
+.title-backdrop + .title-hero-inner .title-by a { color: #fff; }
+.title-body.wide { max-width: none; }
+.clamp-5 { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.artist-bio { max-width: 900px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.link-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.link-chip { gap: 5px; color: var(--text-2); }
+.disc-section { display: flex; flex-direction: column; gap: 12px; }
+.disc-head { display: flex; align-items: baseline; gap: 10px; }
+.disc-head h2 { font-size: 17px; }
+.album-body { display: flex; flex-direction: column; gap: 22px; }
+.album-cols { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
+.tracks { list-style: none; margin: 0; padding: 0 0 6px; }
+.track { display: flex; align-items: center; gap: 12px; padding: 8px 18px; border-top: 1px solid var(--border); font-size: 14px; }
+.track.missing { color: var(--muted); }
+.track-n { width: 26px; color: var(--muted); font-size: 12.5px; text-align: right; }
+.track-t { width: 40px; text-align: right; }
+.disc-label { padding: 10px 18px 6px; border-top: 1px solid var(--border); font-weight: 600; }
+.ok-text { color: var(--ok, #16a34a); }
+.info-dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
+.info-dl > div { display: contents; }
+.info-dl dt { color: var(--muted); font-size: 13px; }
+.info-dl dd { margin: 0; font-size: 13.5px; }
+.artist-card { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.artist-card-head { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; }
+.artist-card-head:hover { text-decoration: none; }
+.artist-card-head .poster.sm { width: 52px; }
+.artist-card-bio { margin: 0; }
+@media (max-width: 900px) { .album-cols { grid-template-columns: 1fr; } }

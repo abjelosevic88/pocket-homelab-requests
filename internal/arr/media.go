@@ -432,6 +432,9 @@ type Artist struct {
 	ID              int64    `json:"id"`
 	ArtistName      string   `json:"artistName"`
 	ForeignArtistID string   `json:"foreignArtistId"`
+	Disambiguation  string   `json:"disambiguation"`
+	ArtistType      string   `json:"artistType"`
+	RemotePoster    string   `json:"remotePoster"`
 	Overview        string   `json:"overview"`
 	Images          []Image  `json:"images"`
 	Monitored       bool     `json:"monitored"`
@@ -460,7 +463,15 @@ type Album struct {
 	Overview       string   `json:"overview"`
 	Duration       int64    `json:"duration"`
 	Ratings        Rating   `json:"ratings"`
-	Statistics     *struct {
+	Releases       []struct {
+		Title      string   `json:"title"`
+		Country    []string `json:"country"`
+		Label      []string `json:"label"`
+		Format     string   `json:"format"`
+		TrackCount int      `json:"trackCount"`
+		Monitored  bool     `json:"monitored"`
+	} `json:"releases"`
+	Statistics *struct {
 		TrackFileCount  int     `json:"trackFileCount"`
 		TrackCount      int     `json:"trackCount"`
 		TotalTrackCount int     `json:"totalTrackCount"`

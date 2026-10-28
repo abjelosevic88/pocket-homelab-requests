@@ -1,5 +1,5 @@
 // One place for how a request's state reads and looks.
-import type { Kind, ReqState, ReqStatus, Request, Title } from './types'
+import type { Kind, ReqState, ReqStatus, Request, Title, TitleKind } from './types'
 
 export type Tone = 'neutral' | 'accent' | 'ok' | 'warn' | 'bad' | 'muted'
 
@@ -38,23 +38,25 @@ export const stateTone = (s: string): Tone => TONE[s] || 'neutral'
 export const BUSY: string[] = ['sent', 'searching', 'downloading', 'importing']
 export const isBusy = (r: { status: ReqStatus; state: ReqState }) => r.status === 'approved' && BUSY.includes(r.state)
 
-export const KIND_ICON: Record<Kind, string> = { movie: 'film', series: 'tv', album: 'music' }
-export const KIND_LABEL: Record<Kind, string> = { movie: 'Film', series: 'Show', album: 'Album' }
+export const KIND_ICON: Record<TitleKind, string> = { movie: 'film', series: 'tv', album: 'music', artist: 'user' }
+export const KIND_LABEL: Record<TitleKind, string> = { movie: 'Film', series: 'Show', album: 'Album', artist: 'Artist' }
 export const KIND_PLURAL: Record<Kind, string> = { movie: 'Films', series: 'Shows', album: 'Music' }
 
 /** Watch or Listen. */
-export const openVerb = (k: Kind) => k === 'album' ? 'Listen' : 'Watch'
+export const openVerb = (k: TitleKind) => k === 'album' ? 'Listen' : 'Watch'
 
 /** Where a title page lives. */
 export function titleURL(t: Pick<Title, 'kind' | 'tmdb_id' | 'tvdb_id' | 'mbid'>): string {
   if (t.kind === 'movie') return `/title/movie/${t.tmdb_id}`
   if (t.kind === 'series') return t.tvdb_id ? `/title/series/${t.tvdb_id}` : `/title/series/tmdb-${t.tmdb_id}`
+  if (t.kind === 'artist') return `/title/artist/${t.mbid}`
   return `/title/album/${t.mbid}`
 }
 export const requestTitleURL = (r: Request) => titleURL(r)
 
 /** A small badge for a poster card: what is true about this title for you. */
 export function titleBadge(t: Title): { label: string; tone: Tone } | null {
+  if (t.kind === 'artist') return t.in_library ? { label: 'In library', tone: 'ok' } : null
   if (t.available) return { label: 'Here', tone: 'ok' }
   if (t.request) return { label: t.request.status === 'pending' ? 'Waiting' : 'Requested', tone: 'accent' }
   if (t.partial) return { label: 'Partly here', tone: 'ok' }
