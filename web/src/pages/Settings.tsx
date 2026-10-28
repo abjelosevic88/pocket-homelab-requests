@@ -172,7 +172,7 @@ function Notifications() {
 
 // ---- services (admins) ----
 
-const SERVICES: { name: ServiceName; label: string; icon: string; what: string; noURL?: boolean; placeholder: string }[] = [
+const SERVICES: { name: ServiceName; label: string; icon: string; what: string; noURL?: boolean; login?: boolean; placeholder: string }[] = [
   { name: 'radarr', label: 'Radarr', icon: 'film', what: 'Finds and downloads films.', placeholder: 'http://host.docker.internal:7878' },
   { name: 'sonarr', label: 'Sonarr', icon: 'tv', what: 'Finds and downloads shows.', placeholder: 'http://host.docker.internal:8989' },
   { name: 'lidarr', label: 'Lidarr', icon: 'music', what: 'Finds and downloads music. Without it, music is greyed out.', placeholder: 'http://host.docker.internal:8686' },
@@ -181,6 +181,7 @@ const SERVICES: { name: ServiceName; label: string; icon: string; what: string; 
   { name: 'jellyseerr', label: 'Jellyseerr', icon: 'inbox', what: 'Only to bring old requests over (Backup & data).', placeholder: 'http://host.docker.internal:5055' },
   { name: 'sabnzbd', label: 'SABnzbd', icon: 'download', what: 'Usenet downloads: speed, time left and free space on Downloads, and pause / resume.', placeholder: 'http://host.docker.internal:8131' },
   { name: 'slskd', label: 'slskd (Soulseek)', icon: 'download', what: 'Shows Soulseek downloads of requested albums (Soularr fetches them for Lidarr).', placeholder: 'http://host.docker.internal:5030' },
+  { name: 'navidrome', label: 'Navidrome', icon: 'music', what: 'Lets “Listen” on an album that arrived open it in Pocket Music.', login: true, placeholder: 'http://host.docker.internal:4533' },
   { name: 'tmdb', label: 'TMDb', icon: 'star', what: 'Trending and popular shows on Discover. Films don’t need it.', noURL: true, placeholder: '' },
 ]
 
@@ -234,7 +235,8 @@ function ServiceBlock({ svc, st, coreOn, field, set, onMode, test }: {
           {!coreOn && mode !== 'direct' && <CoreHint />}
           {(mode === 'direct' || (mode === 'auto' && !coreOn)) && <div className={svc.noURL ? '' : 'three-col tight'}>
             {!svc.noURL && <Field label="Address" help="How this app reaches it."><input value={field(`${svc.name}_url`)} onChange={e => set(`${svc.name}_url`, e.target.value)} placeholder={svc.placeholder} /></Field>}
-            <Field label={svc.name === 'tmdb' ? 'API key or read token' : 'API key'} help={svc.name === 'tmdb' ? 'themoviedb.org → Settings → API' : 'Settings → General'}><input value={field(`${svc.name}_key`)} onChange={e => set(`${svc.name}_key`, e.target.value)} autoComplete="off" /></Field>
+            {svc.login && <Field label="User"><input value={field(`${svc.name}_user`)} onChange={e => set(`${svc.name}_user`, e.target.value)} autoComplete="off" /></Field>}
+            <Field label={svc.login ? 'Password' : svc.name === 'tmdb' ? 'API key or read token' : 'API key'} help={svc.login ? undefined : svc.name === 'tmdb' ? 'themoviedb.org → Settings → API' : 'Settings → General'}><input type={svc.login ? 'password' : 'text'} value={field(`${svc.name}_key`)} onChange={e => set(`${svc.name}_key`, e.target.value)} autoComplete="off" /></Field>
             {!svc.noURL && <Field label="Public address (optional)" help="For links people open."><input value={field(`${svc.name}_public_url`)} onChange={e => set(`${svc.name}_public_url`, e.target.value)} placeholder="https://…" /></Field>}
           </div>}
         </div>}

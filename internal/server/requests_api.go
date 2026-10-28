@@ -39,7 +39,12 @@ func (s *Server) public(ctx context.Context, r store.Request) publicRequest {
 	p := publicRequest{Request: r}
 	if r.State == "available" || r.State == "partial" || (r.State == "importing" && r.JellyfinID != "") {
 		_, jf, _ := s.jellyfinIndex(ctx, false)
-		p.OpenURL = openURL(r.Kind, r.JellyfinID, s.resolveSibling(ctx, "watch"), jf, true)
+		p.OpenURL = openURL(r.Kind, r.JellyfinID, s.publicSibling(ctx, "watch"), jf, true)
+		if r.Kind == "album" {
+			if link := s.musicLink(ctx, r.MBID, r.Subtitle, r.Title); link != "" {
+				p.OpenURL = link
+			}
+		}
 	}
 	st, _ := s.store.GetSettings(ctx, 0)
 	searchable := r.Status == "approved" && r.ArrID > 0 && (r.State == "searching" || r.State == "attention" || r.State == "partial" || r.State == "unreleased")

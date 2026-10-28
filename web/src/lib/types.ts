@@ -6,7 +6,7 @@ export type Kind = 'movie' | 'series' | 'album'
 export type TitleKind = Kind | 'artist'
 export type ServiceMode = '' | 'auto' | 'core' | 'direct' | 'off'
 export type CareMode = 'off' | 'watch' | 'fix'
-export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb' | 'slskd' | 'sabnzbd'
+export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb' | 'slskd' | 'sabnzbd' | 'navidrome'
 
 export interface Settings {
   core_configured: boolean
@@ -25,6 +25,7 @@ export interface Settings {
   tmdb_mode: ServiceMode; tmdb_key: string
   slskd_mode: ServiceMode; slskd_url: string; slskd_key: string; slskd_public_url: string
   sabnzbd_mode: ServiceMode; sabnzbd_url: string; sabnzbd_key: string; sabnzbd_public_url: string
+  navidrome_mode: ServiceMode; navidrome_url: string; navidrome_key: string; navidrome_user: string; navidrome_public_url: string
 
   movie_profile_id: number; movie_root: string; movie_availability: 'announced' | 'inCinemas' | 'released'
   series_profile_id: number; series_root: string; series_season_folders: boolean; series_type: 'standard' | 'anime' | 'daily'

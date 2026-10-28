@@ -473,3 +473,45 @@ func uniq(xs []string) []string {
 	}
 	return out
 }
+
+// musicLink is where an album that arrived can be played in Pocket Music
+// (its album page, found in Navidrome by artist and title; cached a day).
+// "" when Pocket Music or Navidrome isn't there, or the album isn't found.
+func (s *Server) musicLink(ctx context.Context, mbid, artist, title string) string {
+	music := s.publicSibling(ctx, "music")
+	if music == "" || title == "" {
+		return ""
+	}
+	key := "music-link:" + mbid
+	if v, at, ok := s.store.CacheGet(ctx, key); ok {
+		if t, err := time.Parse(time.RFC3339Nano, at); err == nil && time.Since(t) < 24*time.Hour {
+			if v == "" {
+				return ""
+			}
+			return music + "/albums/" + v
+		}
+	}
+	svc, err := s.boxService(ctx, "navidrome")
+	if err != nil {
+		return ""
+	}
+	cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	found, err := arr.NavidromeFind(cctx, svc.base, svc.user, svc.key, title)
+	if err != nil {
+		return ""
+	}
+	id := ""
+	ft, fa := arr.Fold(title), arr.Fold(artist)
+	for _, a := range found {
+		if arr.Fold(a.Name) == ft && (fa == "" || arr.Fold(a.Artist) == fa || strings.Contains(arr.Fold(a.Artist), fa)) {
+			id = a.ID
+			break
+		}
+	}
+	_ = s.store.CachePut(ctx, key, id)
+	if id == "" {
+		return ""
+	}
+	return music + "/albums/" + id
+}

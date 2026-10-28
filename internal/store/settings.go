@@ -22,7 +22,7 @@ var boxKeys = map[string]bool{"title": true, "setup_complete": true,
 }
 
 // ServiceNames are the services the box reaches (each has <name>_mode, _url, _key, _public_url).
-var ServiceNames = []string{"radarr", "sonarr", "lidarr", "prowlarr", "jellyfin", "jellyseerr", "tmdb", "slskd", "sabnzbd"}
+var ServiceNames = []string{"radarr", "sonarr", "lidarr", "prowlarr", "jellyfin", "jellyseerr", "tmdb", "slskd", "sabnzbd", "navidrome"}
 
 // IsBoxKey reports whether a settings key is box-wide.
 func IsBoxKey(k string) bool {

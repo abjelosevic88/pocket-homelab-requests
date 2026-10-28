@@ -24,6 +24,7 @@ import (
 
 type boxSvc struct {
 	name, base, public, key, via string // via: core | direct
+	user                         string // Navidrome: the account (key = its password)
 }
 
 type boxDef struct {
@@ -42,6 +43,7 @@ var boxDefs = map[string]boxDef{
 	"tmdb":       {"tmdb", "TMDb", false},
 	"slskd":      {"slskd", "slskd (Soulseek)", true},
 	"sabnzbd":    {"sabnzbd", "SABnzbd", true},
+	"navidrome":  {"navidrome", "Navidrome", true},
 }
 
 var errBoxOff = errors.New("switched off under Settings → Services")
@@ -68,6 +70,8 @@ func svcFields(st *store.Settings, name string) (url, key, public, mode *string)
 		return &st.SlskdURL, &st.SlskdKey, &st.SlskdPublic, &st.SlskdMode
 	case "sabnzbd":
 		return &st.SabnzbdURL, &st.SabnzbdKey, &st.SabnzbdPublic, &st.SabnzbdMode
+	case "navidrome":
+		return &st.NavidromeURL, &st.NavidromeKey, &st.NavidromePublic, &st.NavidromeMode
 	}
 	return nil, nil, nil, nil
 }
@@ -123,7 +127,7 @@ func (s *Server) resolveBoxService(ctx context.Context, name string) (*boxSvc, e
 			}
 			return nil, errors.New("not set up: add a key in Pocket Core or under Settings → Services")
 		}
-		return &boxSvc{name: name, base: strings.TrimRight(base, "/"), public: strings.TrimRight(firstNonEmpty(public, base), "/"), key: key, via: "direct"}, nil
+		return &boxSvc{name: name, base: strings.TrimRight(base, "/"), public: strings.TrimRight(firstNonEmpty(public, base), "/"), key: key, via: "direct", user: st.NavidromeUser}, nil
 	}
 	viaCore := func() (*boxSvc, error) {
 		if !s.core.Configured() {
@@ -136,6 +140,13 @@ func (s *Server) resolveBoxService(ctx context.Context, name string) (*boxSvc, e
 		cred, err := s.core.ServiceFor(ctx, owner.Email, def.typ)
 		if err != nil {
 			return nil, errors.New(coreReason(err, def.label))
+		}
+		if name == "navidrome" { // a login, not a key
+			user, pass := firstNonEmpty(cred.Fields["USER"], cred.Fields["USERNAME"]), firstNonEmpty(cred.Fields["PASSWORD"], cred.Key)
+			if cred.URL == "" || user == "" || pass == "" {
+				return nil, errors.New("Pocket Core has Navidrome without a login for the box owner (Pocket Core → Settings → My logins)")
+			}
+			return &boxSvc{name: name, base: strings.TrimRight(cred.URL, "/"), public: strings.TrimRight(firstNonEmpty(cred.PublicURL, cred.URL), "/"), key: pass, user: user, via: "core"}, nil
 		}
 		if (def.needsURL && cred.URL == "") || cred.Key == "" {
 			return nil, errors.New("Pocket Core has " + def.label + " without a login for the box owner (Pocket Core → Settings → My logins)")
@@ -322,6 +333,15 @@ func (s *Server) pingService(ctx context.Context, name string) (string, error) {
 			return "", err
 		}
 		return "", t.Check(ctx)
+	case "navidrome":
+		svc, err := s.boxService(ctx, name)
+		if err != nil {
+			return "", err
+		}
+		if _, err := arr.NavidromeFind(ctx, svc.base, svc.user, svc.key, "a"); err != nil {
+			return "", err
+		}
+		return "", nil
 	case "slskd":
 		c, err := s.slskd(ctx)
 		if err != nil {

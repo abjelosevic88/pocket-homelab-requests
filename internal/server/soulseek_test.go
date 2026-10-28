@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,5 +102,23 @@ func TestSoularrBlacklist(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "failed_imports.json.pocket-requests.tmp")); err == nil {
 		t.Fatal("temp file left behind")
+	}
+}
+
+func TestNavidromeFind(t *testing.T) {
+	nd := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/rest/search3" || r.URL.Query().Get("u") != "ana" || r.URL.Query().Get("t") == "" {
+			w.WriteHeader(400)
+			return
+		}
+		_, _ = w.Write([]byte(`{"subsonic-response":{"status":"ok","searchResult3":{"album":[{"id":"a1","name":"In Rainbows (Disk 2)","artist":"Radiohead"},{"id":"a2","name":"In Rainbows","artist":"Radiohead"}]}}}`))
+	}))
+	defer nd.Close()
+	got, err := arr.NavidromeFind(t.Context(), nd.URL, "ana", "pw", "In Rainbows")
+	if err != nil || len(got) != 2 {
+		t.Fatalf("find = %v %v", got, err)
+	}
+	if arr.Fold("In Rainbows") != arr.Fold(got[1].Name) || arr.Fold("In Rainbows") == arr.Fold(got[0].Name) {
+		t.Fatal("folding should match only the exact title")
 	}
 }

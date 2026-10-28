@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,8 +58,9 @@ type Server struct {
 }
 
 type resolvedURL struct {
-	url string
-	at  time.Time
+	url    string
+	public string // where people open it (for links); url is how this app reaches it
+	at     time.Time
 }
 
 // New creates a server.
@@ -274,6 +276,7 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 			{Type: "jellyfin", Reason: "Check that what arrived can really be watched, and start a library scan when it can't"},
 			{Type: "jellyseerr", Reason: "Bring over the requests made in Jellyseerr"},
 			{Type: "tmdb", Reason: "Trending and popular shows to discover"},
+			{Type: "navidrome", Reason: "Open an album that arrived straight in Pocket Music"},
 			{Type: "sabnzbd", Reason: "Show usenet download speed, time left and free space, and pause or resume it"},
 			{Type: "slskd", Reason: "Show Soulseek downloads of requested albums (Soularr fetches them for Lidarr)"},
 		},
@@ -295,23 +298,34 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 
 // resolveSibling asks Core where a sibling app lives (cached a minute).
 func (s *Server) resolveSibling(ctx context.Context, slug string) string {
+	return s.sibling(ctx, slug).url
+}
+
+// publicSibling is where people open a sibling app (its public address) —
+// the one to put in links; resolveSibling is how this app reaches it.
+func (s *Server) publicSibling(ctx context.Context, slug string) string {
+	r := s.sibling(ctx, slug)
+	return firstNonEmpty(r.public, r.url)
+}
+
+func (s *Server) sibling(ctx context.Context, slug string) resolvedURL {
 	if !s.core.Configured() {
-		return ""
+		return resolvedURL{}
 	}
 	s.coreMu.Lock()
 	if r, ok := s.resolved[slug]; ok && time.Since(r.at) < time.Minute {
 		s.coreMu.Unlock()
-		return r.url
+		return r
 	}
 	s.coreMu.Unlock()
-	url := ""
+	r := resolvedURL{at: time.Now()}
 	if res, err := s.core.Resolve(ctx, slug); err == nil {
-		url = res.URL
+		r.url, r.public = strings.TrimRight(res.URL, "/"), strings.TrimRight(res.PublicURL, "/")
 	}
 	s.coreMu.Lock()
-	s.resolved[slug] = resolvedURL{url: url, at: time.Now()}
+	s.resolved[slug] = r
 	s.coreMu.Unlock()
-	return url
+	return r
 }
 
 // coreStatus summarises the Pocket Core link for the About page.

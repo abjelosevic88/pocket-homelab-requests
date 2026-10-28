@@ -2,6 +2,8 @@ package arr
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -477,4 +479,60 @@ func TVmazeSeasons(ctx context.Context, tvdbID int64) ([]TVmazeSeason, error) {
 	}
 	var seasons []TVmazeSeason
 	return seasons, get("https://api.tvmaze.com/shows/"+strconv.FormatInt(show.ID, 10)+"/seasons", &seasons)
+}
+
+// ---- Navidrome: where an album can be played in Pocket Music ----
+
+// NavidromeAlbum is an album as Navidrome lists it.
+type NavidromeAlbum struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Artist string `json:"artist"`
+	Year   int    `json:"year"`
+}
+
+// NavidromeFind searches Navidrome (Subsonic API, token auth) for albums.
+func NavidromeFind(ctx context.Context, base, user, password, query string) ([]NavidromeAlbum, error) {
+	salt := fmt.Sprintf("%x", time.Now().UnixNano())
+	sum := md5.Sum([]byte(password + salt))
+	q := url.Values{"u": {user}, "t": {hex.EncodeToString(sum[:])}, "s": {salt}, "v": {"1.16.1"}, "c": {"pocket-requests"}, "f": {"json"},
+		"query": {query}, "albumCount": {"20"}, "artistCount": {"0"}, "songCount": {"0"}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(base, "/")+"/rest/search3?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Navidrome did not answer: %w", err)
+	}
+	defer resp.Body.Close()
+	var out struct {
+		R struct {
+			Status string `json:"status"`
+			Error  *struct {
+				Message string `json:"message"`
+			} `json:"error"`
+			Result struct {
+				Album []NavidromeAlbum `json:"album"`
+			} `json:"searchResult3"`
+		} `json:"subsonic-response"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
+		return nil, err
+	}
+	if out.R.Error != nil {
+		return nil, &Error{Status: http.StatusUnauthorized, Msg: "Navidrome: " + out.R.Error.Message}
+	}
+	return out.R.Result.Album, nil
+}
+
+// Fold makes names comparable: lowercase letters and digits only.
+func Fold(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r > 127 {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

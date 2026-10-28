@@ -56,6 +56,7 @@ func (s *Server) publicSettings(ctx context.Context, u *store.User, st store.Set
 				out[name+"_public_url"] = *pp
 			}
 		}
+		out["navidrome_user"] = st.NavidromeUser
 		for k, v := range map[string]any{
 			"movie_profile_id": st.MovieProfileID, "movie_root": st.MovieRoot, "movie_availability": st.MovieAvailability,
 			"series_profile_id": st.SeriesProfileID, "series_root": st.SeriesRoot, "series_season_folders": st.SeriesSeasonFolders, "series_type": st.SeriesType,
@@ -229,6 +230,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		idIn("series_profile_id", &cur.SeriesProfileID, in.SeriesProfileID)
 		idIn("album_profile_id", &cur.AlbumProfileID, in.AlbumProfileID)
 		idIn("album_metadata_profile_id", &cur.AlbumMetadataID, in.AlbumMetadataID)
+		text("navidrome_user", &cur.NavidromeUser, in.NavidromeUser)
 		text("movie_root", &cur.MovieRoot, in.MovieRoot)
 		text("series_root", &cur.SeriesRoot, in.SeriesRoot)
 		text("music_root", &cur.MusicRoot, in.MusicRoot)

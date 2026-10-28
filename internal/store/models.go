@@ -174,6 +174,11 @@ type Settings struct {
 	SabnzbdURL       string `json:"sabnzbd_url"`
 	SabnzbdKey       string `json:"sabnzbd_key"`
 	SabnzbdPublic    string `json:"sabnzbd_public_url"`
+	NavidromeMode    string `json:"navidrome_mode"`
+	NavidromeURL     string `json:"navidrome_url"`
+	NavidromeKey     string `json:"navidrome_key"` // the password
+	NavidromeUser    string `json:"navidrome_user"`
+	NavidromePublic  string `json:"navidrome_public_url"`
 
 	// The Jellyseerr-compatible API's key (sha256, and its first characters to recognise it).
 	SeerrKeyHash string `json:"seerr_key_hash"`

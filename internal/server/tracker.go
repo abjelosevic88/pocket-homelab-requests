@@ -525,7 +525,12 @@ func (s *Server) tellArrived(ctx context.Context, rq *store.Request, partial boo
 		body = rq.StateDetail + "."
 	}
 	_, jf, _ := s.jellyfinIndex(ctx, false)
-	link := openURL(rq.Kind, rq.JellyfinID, s.resolveSibling(ctx, "watch"), jf, true)
+	link := openURL(rq.Kind, rq.JellyfinID, s.publicSibling(ctx, "watch"), jf, true)
+	if rq.Kind == "album" {
+		if m := s.musicLink(ctx, rq.MBID, rq.Subtitle, rq.Title); m != "" {
+			link = m
+		}
+	}
 	go s.tellPersonLink(context.Background(), rq.UserID, title, body, "tada", "notify_available", firstNonEmpty(link, s.requestLink(rq.ID)))
 }
 

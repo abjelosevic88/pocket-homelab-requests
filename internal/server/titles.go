@@ -207,7 +207,7 @@ func (s *Server) annotate(ctx context.Context, uid int64, ts []Title) []Title {
 	var movies map[int64]arr.Movie
 	var series map[int64]arr.Series
 	idx, jfPublic, _ := s.jellyfinIndex(ctx, false)
-	watch := s.resolveSibling(ctx, "watch")
+	watch := s.publicSibling(ctx, "watch")
 	for i := range ts {
 		t := &ts[i]
 		switch t.Kind {
@@ -239,6 +239,11 @@ func (s *Server) annotate(ctx context.Context, uid int64, ts []Title) []Title {
 			}
 		}
 		t.OpenURL = openURL(t.Kind, t.JellyfinID, watch, jfPublic, t.Available || t.Partial)
+		if t.Kind == "album" && (t.Available || t.Partial) {
+			if link := s.musicLink(ctx, t.MBID, t.Subtitle, t.Title); link != "" {
+				t.OpenURL = link
+			}
+		}
 		if r, err := s.store.FindRequest(ctx, uid, t.key()); err == nil {
 			t.Request = &titleRequest{ID: r.ID, Status: r.Status, State: r.State, Progress: r.Progress}
 		}
