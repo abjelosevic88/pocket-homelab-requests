@@ -408,3 +408,6 @@ a.req-poster:hover, a.ready-art:hover, a.callout:hover, a.appr-title:hover { tex
 .artist-card-head .poster.sm { width: 52px; }
 .artist-card-bio { margin: 0; }
 @media (max-width: 900px) { .album-cols { grid-template-columns: 1fr; } }
+
+/* a dropdown whose button sits at the right edge opens leftwards, so it never pushes the page wider */
+.sec-head .sel-pop, .disc-head .sel-pop, .page-head .sel-pop, .setting-control .sel-pop { left: auto; right: 0; }
