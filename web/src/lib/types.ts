@@ -1,4 +1,4 @@
-export interface User { id: number; email: string; name: string; role: 'admin' | 'member'; request_policy?: '' | 'auto' | 'approve'; created_at: string }
+export interface User { id: number; email: string; name: string; role: 'admin' | 'member'; request_policy?: '' | 'auto' | 'approve'; jellyfin_user_id?: string; jellyfin_username?: string; created_at: string }
 export interface APIToken { id: number; user_id: number; name: string; prefix: string; last_used_at: string | null; created_at: string }
 
 export type Kind = 'movie' | 'series' | 'album'

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"time"
 )
 
@@ -17,7 +18,7 @@ func (s *Store) CountUsers(ctx context.Context) (int, error) {
 
 // CreateUser inserts a user.
 func (s *Store) CreateUser(ctx context.Context, u *User) error {
-	res, err := s.DB.ExecContext(ctx, `INSERT INTO users (email, name, password_hash, role, request_policy) VALUES (?, ?, ?, ?, ?)`, u.Email, u.Name, u.PasswordHash, u.Role, u.RequestPolicy)
+	res, err := s.DB.ExecContext(ctx, `INSERT INTO users (email, name, password_hash, role, request_policy, jellyfin_user_id, jellyfin_username) VALUES (?, ?, ?, ?, ?, ?, ?)`, u.Email, u.Name, u.PasswordHash, u.Role, u.RequestPolicy, u.JellyfinUserID, u.JellyfinUsername)
 	if err != nil {
 		return conflict(err)
 	}
@@ -27,15 +28,15 @@ func (s *Store) CreateUser(ctx context.Context, u *User) error {
 
 // UpdateUser updates name/email/password/role.
 func (s *Store) UpdateUser(ctx context.Context, u *User) error {
-	_, err := s.DB.ExecContext(ctx, `UPDATE users SET email = ?, name = ?, password_hash = ?, role = ?, request_policy = ?, updated_at = ? WHERE id = ?`, u.Email, u.Name, u.PasswordHash, u.Role, u.RequestPolicy, Now(), u.ID)
+	_, err := s.DB.ExecContext(ctx, `UPDATE users SET email = ?, name = ?, password_hash = ?, role = ?, request_policy = ?, jellyfin_user_id = ?, jellyfin_username = ?, updated_at = ? WHERE id = ?`, u.Email, u.Name, u.PasswordHash, u.Role, u.RequestPolicy, u.JellyfinUserID, u.JellyfinUsername, Now(), u.ID)
 	return conflict(err)
 }
 
-const userCols = `id, email, name, password_hash, role, request_policy, created_at`
+const userCols = `id, email, name, password_hash, role, request_policy, jellyfin_user_id, jellyfin_username, created_at`
 
 func scanUser(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
-	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role, &u.RequestPolicy, &u.CreatedAt); err != nil {
+	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Role, &u.RequestPolicy, &u.JellyfinUserID, &u.JellyfinUsername, &u.CreatedAt); err != nil {
 		return nil, notFound(err)
 	}
 	return &u, nil
@@ -122,7 +123,7 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, ttl time.Durati
 
 // GetSessionUser resolves a session id to a user.
 func (s *Store) GetSessionUser(ctx context.Context, sessionID string) (*User, error) {
-	return scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.email, u.name, u.password_hash, u.role, u.request_policy, u.created_at
+	return scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.email, u.name, u.password_hash, u.role, u.request_policy, u.jellyfin_user_id, u.jellyfin_username, u.created_at
 		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?`, HashToken(sessionID), time.Now().UTC().Format(time.RFC3339)))
 }
 
@@ -153,7 +154,7 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID int64, name string) (
 // GetUserByAPIToken resolves a bearer token.
 func (s *Store) GetUserByAPIToken(ctx context.Context, token string) (*User, error) {
 	h := HashToken(token)
-	u, err := scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.email, u.name, u.password_hash, u.role, u.request_policy, u.created_at
+	u, err := scanUser(s.DB.QueryRowContext(ctx, `SELECT u.id, u.email, u.name, u.password_hash, u.role, u.request_policy, u.jellyfin_user_id, u.jellyfin_username, u.created_at
 		FROM api_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?`, h))
 	if err != nil {
 		return nil, err
@@ -184,4 +185,13 @@ func (s *Store) ListAPITokens(ctx context.Context, userID int64) ([]APIToken, er
 func (s *Store) DeleteAPIToken(ctx context.Context, userID, id int64) error {
 	_, err := s.DB.ExecContext(ctx, `DELETE FROM api_tokens WHERE id = ? AND user_id = ?`, id, userID)
 	return err
+}
+
+// GetUserByJellyfinID finds the person linked to a Jellyfin user (ids compared without dashes).
+func (s *Store) GetUserByJellyfinID(ctx context.Context, id string) (*User, error) {
+	id = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(id), "-", ""))
+	if id == "" {
+		return nil, ErrNotFound
+	}
+	return scanUser(s.DB.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE lower(replace(jellyfin_user_id, '-', '')) = ?`, id))
 }

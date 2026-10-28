@@ -116,3 +116,26 @@ Offers `requests:read` (your requests, their state, what releases next — for C
 title on your behalf, e.g. a "Request" button in Pocket Watch or Pocket Music). Uses the box's Radarr, Sonarr, Lidarr, Prowlarr,
 Jellyfin, Jellyseerr (import) and TMDb logins from Core, and Pocket AI. Events: `requests.created`, `requests.approved`,
 `requests.declined`, `requests.available`, `requests.attention`, `requests.problem_reported`.
+
+## Jellyseerr-compatible API
+
+Apps made for Jellyseerr talk to `BASE_URL/seerr` (or to `/api/v1` on a host listed in `SEERR_HOSTS`), with Jellyseerr's paths and
+JSON. Sign in with the compatibility key (`X-Api-Key`, set under Settings → Jellyseerr apps — a new key, or Jellyseerr's own so
+nothing changes for the apps; `X-Api-User: <id>` acts as that person), a person's own `prq_` token, or a session from
+`POST /auth/local` (email + password) / `POST /auth/jellyfin` (Jellyfin name + password, for a person linked to that Jellyfin
+account) — the `connect.sid` cookie. The key sees every request, like Jellyseerr's key; a person sees their own, admins also the
+ones waiting for them.
+
+| Jellyseerr call | Here |
+|---|---|
+| `GET /status`, `/status/appdata`, `/settings/public` | version 2.7.3 (`commitTag` = pocket-requests-x.y.z), Jellyfin login on |
+| `POST /auth/local`, `/auth/jellyfin`, `/auth/logout`, `GET /auth/me` | sessions |
+| `GET /search?query=`, `/discover/trending`, `/discover/movies`, `/discover/movies/upcoming`, `/discover/tv`, `/discover/tv/upcoming` | TMDb-shaped results with `mediaInfo` (page 1 only). Show posters from TheTVDB come as full URLs |
+| `GET /movie/{tmdbId}`, `/tv/{tmdbId}`, `/tv/{tmdbId}/season/{n}` | from Radarr / Sonarr |
+| `GET /request`, `/request/count`, `/request/{id}`, `POST /request`, `DELETE /request/{id}`, `POST /request/{id}/approve\|decline\|retry` | requests (films and shows; a request's `media.id` is the request id) |
+| `GET /media` | the requests as media |
+| `GET /issue`, `/issue/count`, `/issue/{id}`, `POST /issue`, `POST /issue/{id}/resolved\|open` | reported problems |
+| `GET /user`, `/user/{id}`, `/user/{id}/requests`, `/user/{id}/quota`, `POST /user/import-from-jellyfin` | people (import makes members named after their Jellyfin account) |
+| `GET /service/radarr`, `/service/sonarr`, `/service/{radarr\|sonarr}/0` | the defaults, quality profiles and root folders |
+
+Not offered: 4K requests, Plex, notifications settings, blacklist, watchlists, collections and people pages.

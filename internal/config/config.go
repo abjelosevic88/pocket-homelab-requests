@@ -64,6 +64,10 @@ type Config struct {
 	// albums it gave up on) when Soularr fetches Lidarr's albums from Soulseek.
 	SoularrDir string
 
+	// SeerrHosts are host names whose /api/v1 is the Jellyseerr-compatible API
+	// (e.g. the old Jellyseerr address, pointed here at the switch-over).
+	SeerrHosts []string
+
 	// Outbound lookups identify as this.
 	UserAgent string
 
@@ -160,6 +164,7 @@ func Load() (*Config, error) {
 		TrackEvery: envDuration("TRACK_EVERY", time.Minute),
 		CareEvery:  envDuration("CARE_EVERY", 10*time.Minute),
 		SoularrDir: strings.TrimRight(env("SOULARR_DIR", ""), "/"),
+		SeerrHosts: splitList(env("SEERR_HOSTS", "")),
 
 		UserAgent: env("USER_AGENT", "PocketRequests/1.0 (+https://github.com/abjelosevic88/pocket-homelab-requests)"),
 
@@ -201,6 +206,16 @@ func Load() (*Config, error) {
 // ServiceEnv is one service given in the environment.
 type ServiceEnv struct {
 	URL, Key, PublicURL string
+}
+
+func splitList(v string) []string {
+	var out []string
+	for _, p := range strings.Split(v, ",") {
+		if p = strings.ToLower(strings.TrimSpace(p)); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // Addr returns host:port.

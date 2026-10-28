@@ -17,6 +17,7 @@ var boxKeys = map[string]bool{"title": true, "setup_complete": true,
 	"series_profile_id": true, "series_root": true, "series_season_folders": true, "series_type": true,
 	"album_profile_id": true, "album_metadata_profile_id": true, "music_root": true,
 	"member_policy": true, "movie_quota_week": true, "series_quota_week": true, "album_quota_week": true, "members_can_search": true,
+	"seerr_key_hash": true, "seerr_key_hint": true,
 	"care_search_missed": true, "care_retry_failed": true, "care_unblock_imports": true, "care_jellyfin_scan": true, "care_lidarr": true,
 }
 

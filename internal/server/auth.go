@@ -380,10 +380,25 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		Password      string  `json:"password"`
 		Role          string  `json:"role"`
 		RequestPolicy *string `json:"request_policy"`
+		JellyfinID    *string `json:"jellyfin_user_id"`
+		JellyfinName  *string `json:"jellyfin_username"`
 	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid json")
 		return
+	}
+	if in.JellyfinID != nil {
+		u.JellyfinUserID = strings.TrimSpace(*in.JellyfinID)
+		u.JellyfinUsername = ""
+		if in.JellyfinName != nil {
+			u.JellyfinUsername = strings.TrimSpace(*in.JellyfinName)
+		}
+		if u.JellyfinUserID != "" {
+			if other, err := s.store.GetUserByJellyfinID(r.Context(), u.JellyfinUserID); err == nil && other.ID != u.ID {
+				writeErr(w, http.StatusConflict, "that Jellyfin account is already linked to "+firstNonEmpty(other.Name, other.Email))
+				return
+			}
+		}
 	}
 	if in.Email != "" {
 		u.Email = strings.TrimSpace(strings.ToLower(in.Email))
@@ -420,6 +435,10 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, u)
+}
+
+func checkPassword(hash, pw string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
 }
 
 func validPolicy(p string) bool { return p == "" || p == "auto" || p == "approve" }

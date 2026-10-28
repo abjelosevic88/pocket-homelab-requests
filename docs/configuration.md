@@ -22,6 +22,7 @@ Environment variables; every one has a default. Personal settings (formats, noti
 | `JELLYSEERR_URL`, `JELLYSEERR_API_KEY` | – | Only to bring Jellyseerr's requests over (Settings → Backup & data) |
 | `SLSKD_URL`, `SLSKD_API_KEY` | – | slskd: Soulseek downloads of requested albums (when Soularr fetches Lidarr's wanted albums), on the request and the Downloads page |
 | `SOULARR_DIR` | – | Soularr's data folder (mount it, e.g. `/soularr`): albums on its `failed_imports.json` blacklist show as "needs a look", and admins can let Soulseek try again |
+| `SEERR_HOSTS` | – | Host names (comma list) whose `/api/v1` is the Jellyseerr-compatible API — point Jellyseerr's old address here and its apps keep working; other pages there redirect to `BASE_URL` |
 | `TMDB_API_KEY` | – | Trending / popular / best-rated shows on Discover (a v3 key or a v4 read token). Films and "new episodes this week" need no key |
 | `*_PUBLIC_URL` | – | Where people open a service, when it differs from the address the app uses |
 | `NOTIFY_URL`, `NOTIFY_FORMAT` | – | Apprise (`…/notify/key`), ntfy topic URL or JSON webhook; format `apprise`/`ntfy`/`json` |

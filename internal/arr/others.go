@@ -374,3 +374,67 @@ func StripTags(s string) string {
 	}
 	return strings.TrimSpace(b.String())
 }
+
+// JellyfinUser is one Jellyfin account.
+type JellyfinUser struct {
+	ID     string `json:"Id"`
+	Name   string `json:"Name"`
+	Policy struct {
+		IsAdministrator bool `json:"IsAdministrator"`
+		IsDisabled      bool `json:"IsDisabled"`
+	} `json:"Policy"`
+}
+
+// Users lists Jellyfin's accounts.
+func (j *Jellyfin) Users(ctx context.Context) ([]JellyfinUser, error) {
+	var out []JellyfinUser
+	return out, j.do(ctx, http.MethodGet, "/Users", &out)
+}
+
+// User returns one Jellyfin account.
+func (j *Jellyfin) User(ctx context.Context, id string) (*JellyfinUser, error) {
+	var out JellyfinUser
+	if err := j.do(ctx, http.MethodGet, "/Users/"+url.PathEscape(id), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SignIn checks a Jellyfin name and password (the session it opens is not kept).
+func (j *Jellyfin) SignIn(ctx context.Context, name, password string) (*JellyfinUser, error) {
+	body, _ := json.Marshal(map[string]string{"Username": name, "Pw": password})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, j.Base+"/Users/AuthenticateByName", strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", `MediaBrowser Client="Pocket Requests", Device="Pocket Requests", DeviceId="pocket-requests-signin", Version="1"`)
+	resp, err := j.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Jellyfin did not answer: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, &Error{Status: http.StatusUnauthorized, Msg: "wrong Jellyfin name or password"}
+	}
+	if resp.StatusCode >= 300 {
+		return nil, &Error{Status: resp.StatusCode, Msg: "Jellyfin: " + resp.Status}
+	}
+	var out struct {
+		User        JellyfinUser `json:"User"`
+		AccessToken string       `json:"AccessToken"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return nil, err
+	}
+	// sign the throwaway session out again
+	if out.AccessToken != "" {
+		if lo, err := http.NewRequestWithContext(ctx, http.MethodPost, j.Base+"/Sessions/Logout", nil); err == nil {
+			lo.Header.Set("Authorization", `MediaBrowser Token="`+out.AccessToken+`"`)
+			if r, err := j.http.Do(lo); err == nil {
+				r.Body.Close()
+			}
+		}
+	}
+	return &out.User, nil
+}

@@ -1050,25 +1050,10 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "this request is not waiting for approval")
 		return
 	}
-	me := userFrom(ctx)
-	rq.Status, rq.DecidedBy, rq.DecidedAt = "approved", firstNonEmpty(me.Name, me.Email), store.Now()
-	rq.State, rq.StateDetail = "sent", "Handing it to the server"
-	if in.ProfileID > 0 {
-		rq.ProfileID = in.ProfileID
-	}
-	if in.RootFolder != "" {
-		rq.RootFolder = in.RootFolder
-	}
-	if err := s.store.SaveRequest(ctx, rq); err != nil {
+	if err := s.approve(ctx, rq, userFrom(ctx), in.ProfileID, in.RootFolder); err != nil {
 		s.fail(w, err, "approve")
 		return
 	}
-	_ = s.store.AddEvent(ctx, rq.UserID, rq.ID, "approved", "Approved by "+rq.DecidedBy)
-	s.publish(ctx, rq.UserID, "requests.approved", rq.Title, map[string]any{"request_id": rq.ID, "kind": rq.Kind, "title": rq.Title})
-	if rq.UserID != me.ID {
-		go s.tellPerson(context.Background(), rq.UserID, "Approved: "+rq.Title, rq.DecidedBy+" approved your request. You'll hear when it's ready.", "thumbsup", "notify_approved")
-	}
-	s.sendSoon(rq.ID)
 	writeJSON(w, http.StatusOK, s.public(ctx, *rq))
 }
 
@@ -1090,19 +1075,48 @@ func (s *Server) handleDecline(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "this request is not waiting for approval")
 		return
 	}
-	me := userFrom(ctx)
-	rq.Status, rq.DecidedBy, rq.DecidedAt, rq.DeclineReason = "declined", firstNonEmpty(me.Name, me.Email), store.Now(), strings.TrimSpace(in.Reason)
-	rq.State, rq.StateDetail = "waiting", ""
-	if err := s.store.SaveRequest(ctx, rq); err != nil {
+	if err := s.decline(ctx, rq, userFrom(ctx), in.Reason); err != nil {
 		s.fail(w, err, "decline")
 		return
+	}
+	writeJSON(w, http.StatusOK, s.public(ctx, *rq))
+}
+
+// approve approves a waiting request and hands it to the server.
+func (s *Server) approve(ctx context.Context, rq *store.Request, me *store.User, profile int64, root string) error {
+	rq.Status, rq.DecidedBy, rq.DecidedAt = "approved", firstNonEmpty(me.Name, me.Email), store.Now()
+	rq.State, rq.StateDetail = "sent", "Handing it to the server"
+	if profile > 0 {
+		rq.ProfileID = profile
+	}
+	if root != "" {
+		rq.RootFolder = root
+	}
+	if err := s.store.SaveRequest(ctx, rq); err != nil {
+		return err
+	}
+	_ = s.store.AddEvent(ctx, rq.UserID, rq.ID, "approved", "Approved by "+rq.DecidedBy)
+	s.publish(ctx, rq.UserID, "requests.approved", rq.Title, map[string]any{"request_id": rq.ID, "kind": rq.Kind, "title": rq.Title})
+	if rq.UserID != me.ID {
+		go s.tellPerson(context.Background(), rq.UserID, "Approved: "+rq.Title, rq.DecidedBy+" approved your request. You'll hear when it's ready.", "thumbsup", "notify_approved")
+	}
+	s.sendSoon(rq.ID)
+	return nil
+}
+
+// decline declines a waiting request.
+func (s *Server) decline(ctx context.Context, rq *store.Request, me *store.User, reason string) error {
+	rq.Status, rq.DecidedBy, rq.DecidedAt, rq.DeclineReason = "declined", firstNonEmpty(me.Name, me.Email), store.Now(), strings.TrimSpace(reason)
+	rq.State, rq.StateDetail = "waiting", ""
+	if err := s.store.SaveRequest(ctx, rq); err != nil {
+		return err
 	}
 	_ = s.store.AddEvent(ctx, rq.UserID, rq.ID, "declined", "Declined by "+rq.DecidedBy+optionalQuote(rq.DeclineReason))
 	s.publish(ctx, rq.UserID, "requests.declined", rq.Title, map[string]any{"request_id": rq.ID, "kind": rq.Kind, "title": rq.Title})
 	if rq.UserID != me.ID {
 		go s.tellPerson(context.Background(), rq.UserID, "Declined: "+rq.Title, firstNonEmpty(rq.DeclineReason, rq.DecidedBy+" declined your request."), "no_entry_sign", "notify_approved")
 	}
-	writeJSON(w, http.StatusOK, s.public(ctx, *rq))
+	return nil
 }
 
 // manageable loads any approved request an admin wants to work on.

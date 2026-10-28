@@ -95,6 +95,10 @@ func (s *Server) Router() http.Handler {
 			r.Get("/services/options", s.handleServiceOptions)
 			r.Get("/services/health", s.handleServiceHealth)
 			r.Post("/import/jellyseerr", s.handleImportSeerr)
+			r.Get("/compat", s.handleCompatStatus)
+			r.Post("/compat/key", s.handleCompatKey)
+			r.Delete("/compat/key", s.handleCompatKeyOff)
+			r.Get("/jellyfin/users", s.handleJellyfinUsers)
 
 			// AI
 			r.Get("/ai/status", s.handleAIStatus)
@@ -125,8 +129,11 @@ func (s *Server) Router() http.Handler {
 		})
 	})
 
+	// Jellyseerr's API, for the apps that were made for it
+	r.Route("/seerr/api/v1", s.seerrRoutes)
+
 	r.NotFound(s.handleSPA)
-	return r
+	return s.seerrHostSwitch(r)
 }
 
 // ---------- helpers ----------

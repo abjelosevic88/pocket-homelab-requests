@@ -11,13 +11,14 @@ import { Select } from '../components/Select'
 import { ShortcutsSheet } from '../components/ShortcutsSheet'
 import { PocketModelSelect } from '../components/PocketModelSelect'
 
-type TabId = 'general' | 'notifications' | 'services' | 'requests' | 'ai' | 'profile' | 'people' | 'tokens' | 'data' | 'about'
+type TabId = 'general' | 'notifications' | 'services' | 'requests' | 'jellyseerr' | 'ai' | 'profile' | 'people' | 'tokens' | 'data' | 'about'
 
 const TABS: { id: TabId; label: string; icon: string; sub: string; admin?: boolean }[] = [
   { id: 'general', label: 'General', icon: 'sliders', sub: 'Dates, times, and what Discover shows you.' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', sub: 'A push when something you asked for is approved, ready, or stuck.' },
   { id: 'services', label: 'Services', icon: 'server', sub: 'Radarr, Sonarr and Lidarr do the fetching; Jellyfin says when it’s there to watch. On a box with Pocket Core they come from Core.', admin: true },
   { id: 'requests', label: 'Where requests go', icon: 'inbox', sub: 'Quality and folders for new requests, who needs approval, and weekly limits.', admin: true },
+  { id: 'jellyseerr', label: 'Jellyseerr apps', icon: 'link', sub: 'Apps made for Jellyseerr (Pocket Watch, Homepage, Uptime Kuma, phone apps) can talk to Pocket Requests instead.', admin: true },
   { id: 'ai', label: 'AI', icon: 'sparkles', sub: 'Who suggests titles when you describe what you’re in the mood for: Pocket AI through Core, or your own OpenAI key.' },
   { id: 'profile', label: 'Profile', icon: 'user', sub: 'Your name, email and password.' },
   { id: 'people', label: 'People', icon: 'users', sub: 'Everyone who has an account on this box.' },
@@ -68,6 +69,7 @@ export default function Settings() {
             {tab === 'notifications' && <Notifications />}
             {tab === 'services' && <Services />}
             {tab === 'requests' && <RequestRules />}
+            {tab === 'jellyseerr' && <JellyseerrApps />}
             {tab === 'ai' && <AITab />}
             {tab === 'profile' && <Profile />}
             {tab === 'people' && <Users />}
@@ -354,7 +356,8 @@ function Users() {
 
 function UserModal({ user, local, onClose, onSaved }: { user: Partial<User>; local: boolean; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast()
-  const [f, setF] = useState({ name: user.name || '', email: user.email || '', password: '', role: user.role || 'member', request_policy: user.request_policy || '' })
+  const [f, setF] = useState({ name: user.name || '', email: user.email || '', password: '', role: user.role || 'member', request_policy: user.request_policy || '', jellyfin_user_id: user.jellyfin_user_id || '', jellyfin_username: user.jellyfin_username || '' })
+  const { data: jf } = useAsync(() => api.get<{ items: { id: string; name: string }[] }>(`${V1}/jellyfin/users`).catch(() => ({ items: [] })), [])
   const [busy, setBusy] = useState(false)
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true)
@@ -369,6 +372,10 @@ function UserModal({ user, local, onClose, onSaved }: { user: Partial<User>; loc
         <Field group label="Role"><Segmented value={f.role} onChange={v => setF({ ...f, role: v })} options={[{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }]} /></Field>
         {f.role === 'member' && <Field group label="Their requests" help="Admins’ requests always go straight through.">
           <Select ariaLabel="Their requests" value={f.request_policy} onChange={v => setF({ ...f, request_policy: v as User['request_policy'] & string })} options={[{ value: '', label: 'Box default' }, { value: 'auto', label: 'Approve automatically' }, { value: 'approve', label: 'I decide' }]} />
+        </Field>}
+        {user.id && <Field group label="Jellyfin account" help="Apps made for Jellyseerr find people by their Jellyfin account; it also lets them sign in with their Jellyfin password there.">
+          <Select ariaLabel="Jellyfin account" value={f.jellyfin_user_id} onChange={v => setF({ ...f, jellyfin_user_id: v, jellyfin_username: jf?.items.find(x => x.id === v)?.name || '' })}
+            options={[{ value: '', label: 'None' }, ...(jf?.items || []).map(x => ({ value: x.id, label: x.name }))]} />
         </Field>}
         <div className="form-actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>{user.id ? 'Save' : 'Add person'}</button></div>
       </form>
@@ -486,6 +493,48 @@ function JellyseerrImport() {
       </div>
       <p className="muted small mt">Uses the Jellyseerr connection under Services.</p>
     </Section>
+  )
+}
+
+interface CompatInfo { enabled: boolean; hint: string; url: string; api: string; hosts: string[] | null; jellyseerr_connected: boolean; key?: string }
+
+function JellyseerrApps() {
+  const { toast } = useToast()
+  const { data, reload } = useAsync(() => api.get<CompatInfo>(`${V1}/compat`), [])
+  const [shown, setShown] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [off, setOff] = useState(false)
+  const set = async (mode: 'new' | 'adopt') => {
+    setBusy(true)
+    try { const r = await api.post<CompatInfo>(`${V1}/compat/key`, { mode }); setShown(r.key || ''); toast(mode === 'adopt' ? 'Jellyseerr’s key works here now' : 'New key made'); reload() } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
+  }
+  const turnOff = async () => {
+    setBusy(true)
+    try { await api.del(`${V1}/compat/key`); setShown(''); toast('Turned off'); reload() } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
+  }
+  const copy = (v: string) => { void navigator.clipboard?.writeText(v); toast('Copied') }
+  if (!data) return <Loading />
+  return (
+    <div className="stack loose">
+      <Section title="Talk to Pocket Requests like Jellyseerr" icon="link" sub="Requests, users, issues, search, discover and film/show pages answer in Jellyseerr’s shapes. A person signed in sees their own requests; the key below is the box’s integration and sees everyone’s, like Jellyseerr’s key.">
+        <SettingRow title="Address for apps" help="Give this to an app as its Jellyseerr server.">
+          <span className="row"><code className="ellipsis">{data.url}</code><button type="button" className="btn sm" onClick={() => copy(data.url)}><Icon name="copy" size={13} />Copy</button></span>
+        </SettingRow>
+        {data.hosts && data.hosts.length > 0 && <SettingRow title="Also answering as" help="These addresses keep working for apps set up for Jellyseerr.">
+          <span className="small">{data.hosts.join(', ')}</span>
+        </SettingRow>}
+        <SettingRow title="API key" help={data.enabled ? `Set (${data.hint}). Apps send it as X-Api-Key.` : 'Off: only people signed in can use the Jellyseerr API.'}>
+          <span className="row wrap">
+            <button type="button" className="btn sm" disabled={busy || !data.jellyseerr_connected} title={data.jellyseerr_connected ? '' : 'Needs the Jellyseerr connection under Services'} onClick={() => set('adopt')}>Use Jellyseerr’s key</button>
+            <button type="button" className="btn sm" disabled={busy} onClick={() => set('new')}>Make a new key</button>
+            {data.enabled && <button type="button" className="btn sm" disabled={busy} onClick={() => setOff(true)}>Turn off</button>}
+          </span>
+        </SettingRow>
+        {shown && <div className="callout"><Icon name="key" size={15} /><span className="grow">Copy it now — it isn’t shown again: <code>{shown}</code></span><button type="button" className="btn sm" onClick={() => copy(shown)}>Copy</button></div>}
+        <p className="muted small mt">“Use Jellyseerr’s key” means Pocket Watch, Pocket Core, Homepage and Uptime Kuma need no new key when Jellyseerr’s address points here. People who sign in from a phone app use their Jellyfin name and password (link their Jellyfin account under People) or their email and password. Music isn’t part of it — Jellyseerr has none.</p>
+      </Section>
+      {off && <Confirm title="Turn the key off?" message="Apps using the key stop working until a new key is set. People signed in keep working." confirmLabel="Turn off" onCancel={() => setOff(false)} onConfirm={() => { setOff(false); void turnOff() }} />}
+    </div>
   )
 }
 

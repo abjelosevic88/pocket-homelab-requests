@@ -226,7 +226,43 @@ func (s *Server) importSeerr(ctx context.Context, js *seerr, toOwner bool) (map[
 		}
 	}
 	counts["matched"], counts["unmatched"] = len(matchedPeople), len(unmatchedPeople)
+	counts["linked"] = s.linkSeerrJellyfin(ctx, js)
 	return counts, nil
+}
+
+// linkSeerrJellyfin copies each matched person's Jellyfin account from
+// Jellyseerr (people found by email), so the Jellyseerr-compatible API finds
+// them by Jellyfin user like Jellyseerr did. Existing links are kept.
+func (s *Server) linkSeerrJellyfin(ctx context.Context, js *seerr) int {
+	var page struct {
+		Results []struct {
+			Email            string `json:"email"`
+			JellyfinUserID   string `json:"jellyfinUserId"`
+			JellyfinUsername string `json:"jellyfinUsername"`
+		} `json:"results"`
+	}
+	if err := js.get(ctx, "/user", url.Values{"take": {"1000"}}, &page); err != nil {
+		return 0
+	}
+	n := 0
+	for _, ju := range page.Results {
+		e := strings.ToLower(strings.TrimSpace(ju.Email))
+		if e == "" || ju.JellyfinUserID == "" {
+			continue
+		}
+		u, err := s.store.GetUserByEmail(ctx, e)
+		if err != nil || u.JellyfinUserID != "" {
+			continue
+		}
+		if other, err := s.store.GetUserByJellyfinID(ctx, ju.JellyfinUserID); err == nil && other.ID != u.ID {
+			continue
+		}
+		u.JellyfinUserID, u.JellyfinUsername = ju.JellyfinUserID, ju.JellyfinUsername
+		if s.store.UpdateUser(ctx, u) == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // seerrTime turns Jellyseerr's "2026-10-25T12:10:04.000Z" into our format.

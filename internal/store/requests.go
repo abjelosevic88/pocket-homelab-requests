@@ -88,12 +88,28 @@ type RequestFilter struct {
 	Since  string // created_at >= (YYYY-MM-DD or RFC3339)
 	Limit  int
 	Offset int
+	// for the Jellyseerr-compatible list
+	States    []string // any of these states
+	Statuses  []string // any of these statuses
+	MediaKind string
+	ByUpdated bool
 }
 
 // ListRequests returns uid's requests, newest first, and how many match.
 func (s *Store) ListRequests(ctx context.Context, uid int64, f RequestFilter) ([]Request, int, error) {
-	where := []string{"user_id = ?"}
-	args := []any{uid}
+	return s.listRequests(ctx, []string{"user_id = ?"}, []any{uid}, f)
+}
+
+// ListRequestsBox is ListRequests over everybody, for the box's own
+// integrations only (the Jellyseerr-compatible API key): uid 0 = all people.
+func (s *Store) ListRequestsBox(ctx context.Context, uid int64, f RequestFilter) ([]Request, int, error) {
+	if uid > 0 {
+		return s.ListRequests(ctx, uid, f)
+	}
+	return s.listRequests(ctx, []string{"1 = 1"}, nil, f)
+}
+
+func (s *Store) listRequests(ctx context.Context, where []string, args []any, f RequestFilter) ([]Request, int, error) {
 	if f.Status != "" {
 		where = append(where, "status = ?")
 		args = append(args, f.Status)
@@ -110,6 +126,18 @@ func (s *Store) ListRequests(ctx context.Context, uid int64, f RequestFilter) ([
 		where = append(where, "kind = ?")
 		args = append(args, f.Kind)
 	}
+	if len(f.States) > 0 {
+		where = append(where, "state IN ("+strings.TrimSuffix(strings.Repeat("?,", len(f.States)), ",")+")")
+		for _, x := range f.States {
+			args = append(args, x)
+		}
+	}
+	if len(f.Statuses) > 0 {
+		where = append(where, "status IN ("+strings.TrimSuffix(strings.Repeat("?,", len(f.Statuses)), ",")+")")
+		for _, x := range f.Statuses {
+			args = append(args, x)
+		}
+	}
 	if q := strings.TrimSpace(f.Q); q != "" {
 		where = append(where, "(title LIKE ? OR subtitle LIKE ?)")
 		args = append(args, "%"+q+"%", "%"+q+"%")
@@ -117,6 +145,10 @@ func (s *Store) ListRequests(ctx context.Context, uid int64, f RequestFilter) ([
 	if f.Since != "" {
 		where = append(where, "created_at >= ?")
 		args = append(args, f.Since)
+	}
+	if f.MediaKind != "" {
+		where = append(where, "kind = ?")
+		args = append(args, f.MediaKind)
 	}
 	w := strings.Join(where, " AND ")
 	var total int
@@ -126,7 +158,11 @@ func (s *Store) ListRequests(ctx context.Context, uid int64, f RequestFilter) ([
 	if f.Limit <= 0 || f.Limit > 500 {
 		f.Limit = 100
 	}
-	q := `SELECT ` + requestCols + ` FROM requests WHERE ` + w + ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+	order := "created_at DESC, id DESC"
+	if f.ByUpdated {
+		order = "updated_at DESC, id DESC"
+	}
+	q := `SELECT ` + requestCols + ` FROM requests WHERE ` + w + ` ORDER BY ` + order + ` LIMIT ? OFFSET ?`
 	out, err := collectRequests(s.DB.QueryContext(ctx, q, append(args, f.Limit, f.Offset)...))
 	return out, total, err
 }
@@ -543,4 +579,57 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// ListProblemsBox lists reports (status "" = all) over everybody (uid 0) or one person.
+func (s *Store) ListProblemsBox(ctx context.Context, uid int64, status string, limit, offset int) ([]Problem, int, error) {
+	where, args := "1 = 1", []any{}
+	if uid > 0 {
+		where += " AND p.user_id = ?"
+		args = append(args, uid)
+	}
+	if status != "" {
+		where += " AND p.status = ?"
+		args = append(args, status)
+	}
+	var total int
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(1) FROM problems p WHERE `+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+problemCols+`, r.title, COALESCE(NULLIF(u.name,''), u.email)
+	  FROM problems p JOIN requests r ON r.id = p.request_id JOIN users u ON u.id = p.user_id
+	  WHERE `+where+` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`, append(args, limit, offset)...)
+	ps, err := collectProblems(rows, err, true)
+	return ps, total, err
+}
+
+// RequestTotals counts requests by kind, status and state (uid 0 = everybody).
+func (s *Store) RequestTotals(ctx context.Context, uid int64) (map[string]int, error) {
+	q := `SELECT kind, status, state, COUNT(1) FROM requests`
+	args := []any{}
+	if uid > 0 {
+		q += ` WHERE user_id = ?`
+		args = append(args, uid)
+	}
+	rows, err := s.DB.QueryContext(ctx, q+` GROUP BY kind, status, state`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var kind, status, state string
+		var n int
+		if err := rows.Scan(&kind, &status, &state, &n); err != nil {
+			return nil, err
+		}
+		out["kind:"+kind] += n
+		out["status:"+status] += n
+		out["state:"+state] += n
+		out["total"] += n
+	}
+	return out, rows.Err()
 }

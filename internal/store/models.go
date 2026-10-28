@@ -14,7 +14,10 @@ type User struct {
 	Role         string `json:"role"` // admin | member
 	// RequestPolicy: "" = the box default, "auto" = approved at once, "approve" = an admin decides.
 	RequestPolicy string `json:"request_policy"`
-	CreatedAt     string `json:"created_at"`
+	// The person's Jellyfin account (Jellyseerr-compatible API, Pocket Watch).
+	JellyfinUserID   string `json:"jellyfin_user_id"`
+	JellyfinUsername string `json:"jellyfin_username"`
+	CreatedAt        string `json:"created_at"`
 }
 
 // APIToken is a personal access token (hash stored, plaintext shown once).
@@ -167,6 +170,10 @@ type Settings struct {
 	SlskdURL         string `json:"slskd_url"`
 	SlskdKey         string `json:"slskd_key"`
 	SlskdPublic      string `json:"slskd_public_url"`
+
+	// The Jellyseerr-compatible API's key (sha256, and its first characters to recognise it).
+	SeerrKeyHash string `json:"seerr_key_hash"`
+	SeerrKeyHint string `json:"seerr_key_hint"`
 
 	// Where new requests go (0 / "" = the first profile / root folder).
 	MovieProfileID      int64  `json:"movie_profile_id"`
