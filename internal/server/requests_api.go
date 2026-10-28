@@ -29,6 +29,8 @@ type requestCan struct {
 	Search bool `json:"search"` // "Search again"
 	Report bool `json:"report"` // report a problem with what arrived
 	Manage bool `json:"manage"` // admins: releases, import, replace
+	// Soulseek: admins may take the album off Soularr's blacklist
+	SoulseekRetry bool `json:"soulseek_retry"`
 }
 
 func (s *Server) public(ctx context.Context, r store.Request) publicRequest {
@@ -47,6 +49,9 @@ func (s *Server) public(ctx context.Context, r store.Request) publicRequest {
 		Search: searchable && (admin || st.MembersCanSearch),
 		Report: r.Status == "approved" && (r.State == "available" || r.State == "partial"),
 		Manage: admin && r.Status == "approved" && r.ArrID > 0,
+	}
+	if p.Can.Manage && r.Kind == "album" && r.State == "attention" {
+		p.Can.SoulseekRetry = s.soularrBlocked(r)
 	}
 	return p
 }
@@ -760,8 +765,12 @@ func (s *Server) startAlbum(ctx context.Context, c *arr.Client, rq *store.Reques
 	if err := c.SearchAlbum(ctx, al.ID); err != nil {
 		return err
 	}
-	rq.State, rq.StateDetail, rq.SearchedAt = "searching", "Looking for a copy", store.Now()
-	_ = s.store.AddEvent(ctx, rq.UserID, rq.ID, "sent", "Switched the album on in Lidarr and started a search")
+	rq.State, rq.StateDetail, rq.SearchedAt = "searching", lookingDetail(s), store.Now()
+	msg := "Switched the album on in Lidarr and started a search"
+	if s.soularrConfigured() {
+		msg += "; Soularr also looks for it on Soulseek (within half an hour)"
+	}
+	_ = s.store.AddEvent(ctx, rq.UserID, rq.ID, "sent", msg)
 	return nil
 }
 
@@ -1581,6 +1590,41 @@ func (s *Server) handleDownloads(w http.ResponseWriter, r *http.Request) {
 				seen[it.DownloadID] = len(rows)
 			}
 			rows = append(rows, x)
+		}
+	}
+	// Soulseek folders Soularr is fetching (outside Lidarr's queue)
+	if s.boxUp(ctx, "slskd") {
+		albums := []store.Request{}
+		for _, rq := range mine {
+			if rq.Kind == "album" {
+				albums = append(albums, rq)
+			}
+		}
+		if list, err := s.soulseekRows(ctx); err != nil {
+			errs["slskd"] = err.Error()
+		} else {
+			for i, d := range list {
+				x := row{App: "slskd", ID: int64(i + 1), Kind: "album", Title: soulseekTitle(d), Subtitle: "Soulseek · " + d.Username, Progress: d.Progress(),
+					ETA: d.ETA(), Size: d.Size, SizeLeft: d.Size - d.Received, Client: "Soulseek", Protocol: "soulseek", Added: d.Started,
+					Status: "downloading", State: "downloading"}
+				switch {
+				case d.Finished() && d.Failed == 0:
+					x.Status, x.State = "completed", "importPending"
+				case d.Finished():
+					x.Status, x.State, x.Messages = "failed", "failed", fmt.Sprintf("%d of %d files didn't come through", d.Failed, d.Files)
+				case d.Active == 0:
+					x.Status = "queued"
+				}
+				for _, rq := range albums {
+					if d.MatchesAlbum(rq.Subtitle, rq.Title) {
+						x.RequestID = rq.ID
+						if x.Poster == "" {
+							x.Poster = rq.Poster
+						}
+					}
+				}
+				rows = append(rows, x)
+			}
 		}
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Added < rows[j].Added })

@@ -85,6 +85,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/requests/{id}/import", s.handleImportPreview)
 			r.Post("/requests/{id}/import", s.handleImport)
 			r.Post("/requests/{id}/replace", s.handleReplace)
+			r.Post("/requests/{id}/soulseek-retry", s.handleSoulseekRetry)
 			r.Get("/problems", s.handleListProblems)
 			r.Put("/problems/{id}", s.handleResolveProblem)
 			r.Get("/downloads", s.handleDownloads)

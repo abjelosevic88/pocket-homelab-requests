@@ -11,7 +11,7 @@ import { Bar, detailLine, Poster, StatePill, usePoll } from '../components/media
 import { Confirm, Empty, Field, Loading, Modal, useAsync, useToast } from '../components/ui'
 import { Select } from '../components/Select'
 
-type Dialog = null | 'report' | 'withdraw' | 'remove' | 'decline' | 'releases' | 'import' | 'replace'
+type Dialog = null | 'report' | 'withdraw' | 'remove' | 'decline' | 'releases' | 'import' | 'replace' | 'soulseek'
 
 export default function RequestDetail() {
   const { id = '' } = useParams()
@@ -65,6 +65,7 @@ export default function RequestDetail() {
             <button type="button" className="btn sm" onClick={() => setDialog('releases')}><Icon name="list" size={13} />Pick a release</button>
             {(stuck || hasDownload) && <button type="button" className="btn sm" onClick={() => setDialog('import')}><Icon name="archive" size={13} />Force import</button>}
             {hasDownload && <button type="button" className="btn sm" onClick={() => setDialog('replace')}><Icon name="repeat" size={13} />Replace download</button>}
+            {can.soulseek_retry && <button type="button" className="btn sm" onClick={() => setDialog('soulseek')}><Icon name="repeat" size={13} />Try Soulseek again</button>}
           </div>}
         </div>
       </div>
@@ -114,6 +115,7 @@ export default function RequestDetail() {
       {dialog === 'withdraw' && <Confirm title="Withdraw this request?" message="Nobody will be asked to approve it." confirmLabel="Withdraw" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('del', () => api.del(`${V1}/requests/${r.id}`), 'Withdrawn').then(() => navigate('/requests')) }} />}
       {dialog === 'remove' && <Confirm title="Remove from your list?" message="Only your request goes. Whatever is on the server stays there for everyone." confirmLabel="Remove" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('del', () => api.del(`${V1}/requests/${r.id}`), 'Removed').then(() => navigate('/requests')) }} />}
       {dialog === 'decline' && <DeclineModal onClose={() => setDialog(null)} onDecline={reason => { setDialog(null); act('decline', () => api.post(`${V1}/requests/${r.id}/decline`, { reason }), 'Declined') }} />}
+      {dialog === 'soulseek' && <Confirm title="Let Soulseek try again?" message="Soularr gave up on this album after a download that wouldn't import. It comes off Soularr's list and a new search starts; Soularr looks again within half an hour. The old files stay in failed_imports." confirmLabel="Try again" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('soulseek', () => api.post(`${V1}/requests/${r.id}/soulseek-retry`), 'Soulseek will try again') }} />}
       {dialog === 'replace' && <Confirm title="Replace this download?" message="The current download is removed and blocked, and a search for another copy starts." confirmLabel="Replace" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('replace', () => api.post(`${V1}/requests/${r.id}/replace`), 'Looking for another copy') }} />}
       {dialog === 'releases' && <ReleasesModal id={r.id} seasons={r.kind === 'series' ? r.seasons : ''} onClose={() => setDialog(null)} onGrabbed={() => { setDialog(null); announceChange(); reload() }} />}
       {dialog === 'import' && <ImportModal id={r.id} onClose={() => setDialog(null)} onDone={() => { setDialog(null); announceChange(); reload() }} />}

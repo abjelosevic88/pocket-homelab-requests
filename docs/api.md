@@ -46,7 +46,7 @@ reported-problems list show the title and who asked, nothing else.
   "progress": 0.42, "eta": "2026-10-28T19:30:00Z", "have": 0, "total": 1, "release_date": "2021-10-21",
   "arr_id": 12, "jellyfin_id": "", "created_at": "…", "updated_at": "…", "available_at": "", "checked_at": "…",
   "open_url": "…", "person": "Ana (approvals list only)",
-  "can": { "cancel": true, "remove": false, "search": true, "report": false, "manage": false }
+  "can": { "cancel": true, "remove": false, "search": true, "report": false, "manage": false, "soulseek_retry": false }
 }
 ```
 
@@ -96,6 +96,7 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 | `GET /requests/{id}/import` | `{download_id, ok, reason, files: [{name, size, maps_to, rejections}]}` — what a manual import would do |
 | `POST /requests/{id}/import` | `{download_id}` → `{status}` |
 | `POST /requests/{id}/replace` | Remove the current download (blocklisted) and search for another |
+| `POST /requests/{id}/soulseek-retry` | Albums: take it off Soularr's blacklist (`failed_imports.json`) and search again (`can.soulseek_retry`) |
 | `GET /problems` | `{items: Problem[]}` open reports |
 | `PUT /problems/{id}` | `{status: "resolved", reply?}` |
 | `GET /downloads` | `{items: [{app, id, kind, title, subtitle, poster, progress, eta, size, size_left, status, state, messages, client, indexer, quality, protocol, request_id}], errors}` |

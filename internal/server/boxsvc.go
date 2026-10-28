@@ -40,6 +40,7 @@ var boxDefs = map[string]boxDef{
 	"jellyfin":   {"jellyfin", "Jellyfin", true},
 	"jellyseerr": {"jellyseerr", "Jellyseerr", true},
 	"tmdb":       {"tmdb", "TMDb", false},
+	"slskd":      {"slskd", "slskd (Soulseek)", true},
 }
 
 var errBoxOff = errors.New("switched off under Settings → Services")
@@ -62,6 +63,8 @@ func svcFields(st *store.Settings, name string) (url, key, public, mode *string)
 	case "tmdb":
 		var none string
 		return &none, &st.TMDBKey, nil, &st.TMDBMode
+	case "slskd":
+		return &st.SlskdURL, &st.SlskdKey, &st.SlskdPublic, &st.SlskdMode
 	}
 	return nil, nil, nil, nil
 }
@@ -209,6 +212,14 @@ func (s *Server) jellyfin(ctx context.Context) (*arr.Jellyfin, *boxSvc, error) {
 	return arr.NewJellyfin(svc.base, svc.key), svc, nil
 }
 
+func (s *Server) slskd(ctx context.Context) (*arr.Slskd, error) {
+	svc, err := s.boxService(ctx, "slskd")
+	if err != nil {
+		return nil, err
+	}
+	return arr.NewSlskd(svc.base, svc.key), nil
+}
+
 func (s *Server) tmdb(ctx context.Context) (*arr.TMDB, error) {
 	svc, err := s.boxService(ctx, "tmdb")
 	if err != nil {
@@ -300,6 +311,12 @@ func (s *Server) pingService(ctx context.Context, name string) (string, error) {
 			return "", err
 		}
 		return "", t.Check(ctx)
+	case "slskd":
+		c, err := s.slskd(ctx)
+		if err != nil {
+			return "", err
+		}
+		return c.Version(ctx)
 	}
 	return "", errors.New("unknown service")
 }

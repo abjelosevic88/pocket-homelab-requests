@@ -60,6 +60,10 @@ type Config struct {
 	TrackEvery time.Duration
 	CareEvery  time.Duration
 
+	// SoularrDir is Soularr's data folder (with failed_imports.json, the
+	// albums it gave up on) when Soularr fetches Lidarr's albums from Soulseek.
+	SoularrDir string
+
 	// Outbound lookups identify as this.
 	UserAgent string
 
@@ -155,6 +159,7 @@ func Load() (*Config, error) {
 		Services:   map[string]ServiceEnv{},
 		TrackEvery: envDuration("TRACK_EVERY", time.Minute),
 		CareEvery:  envDuration("CARE_EVERY", 10*time.Minute),
+		SoularrDir: strings.TrimRight(env("SOULARR_DIR", ""), "/"),
 
 		UserAgent: env("USER_AGENT", "PocketRequests/1.0 (+https://github.com/abjelosevic88/pocket-homelab-requests)"),
 
@@ -167,7 +172,7 @@ func Load() (*Config, error) {
 	if c.CoreAppURL == "" {
 		c.CoreAppURL = c.BaseURL
 	}
-	for _, n := range []string{"RADARR", "SONARR", "LIDARR", "PROWLARR", "JELLYFIN", "JELLYSEERR", "TMDB"} {
+	for _, n := range []string{"RADARR", "SONARR", "LIDARR", "PROWLARR", "JELLYFIN", "JELLYSEERR", "TMDB", "SLSKD"} {
 		sv := ServiceEnv{URL: strings.TrimRight(env(n+"_URL", ""), "/"), Key: env(n+"_API_KEY", ""), PublicURL: strings.TrimRight(env(n+"_PUBLIC_URL", ""), "/")}
 		if sv.URL != "" || sv.Key != "" {
 			c.Services[strings.ToLower(n)] = sv

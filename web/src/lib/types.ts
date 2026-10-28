@@ -4,7 +4,7 @@ export interface APIToken { id: number; user_id: number; name: string; prefix: s
 export type Kind = 'movie' | 'series' | 'album'
 export type ServiceMode = '' | 'auto' | 'core' | 'direct' | 'off'
 export type CareMode = 'off' | 'watch' | 'fix'
-export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb'
+export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb' | 'slskd'
 
 export interface Settings {
   core_configured: boolean
@@ -21,6 +21,7 @@ export interface Settings {
   jellyfin_mode: ServiceMode; jellyfin_url: string; jellyfin_key: string; jellyfin_public_url: string
   jellyseerr_mode: ServiceMode; jellyseerr_url: string; jellyseerr_key: string; jellyseerr_public_url: string
   tmdb_mode: ServiceMode; tmdb_key: string
+  slskd_mode: ServiceMode; slskd_url: string; slskd_key: string; slskd_public_url: string
 
   movie_profile_id: number; movie_root: string; movie_availability: 'announced' | 'inCinemas' | 'released'
   series_profile_id: number; series_root: string; series_season_folders: boolean; series_type: 'standard' | 'anime' | 'daily'
@@ -43,7 +44,7 @@ export interface Settings {
 export type ReqStatus = 'pending' | 'approved' | 'declined' | 'cancelled'
 export type ReqState = 'waiting' | 'sent' | 'unreleased' | 'searching' | 'downloading' | 'importing' | 'attention' | 'partial' | 'available' | 'removed' | 'failed'
 
-export interface Can { cancel: boolean; remove: boolean; search: boolean; report: boolean; manage: boolean }
+export interface Can { cancel: boolean; remove: boolean; search: boolean; report: boolean; manage: boolean; soulseek_retry?: boolean }
 
 export interface Request {
   id: number; kind: Kind

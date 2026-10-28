@@ -131,7 +131,7 @@ export default function Layout() {
       { id: 'downloads', label: 'Downloads', icon: 'download', hint: 'L', keywords: 'queue progress', run: () => navigate('/downloads') },
       { id: 'problems', label: 'Reported problems', icon: 'flag', keywords: 'issues report', run: () => navigate('/problems') },
       { id: 'care', label: 'Library care', icon: 'wrench', keywords: 'automatic fixes watchdog search retry import', run: () => navigate('/care') },
-      { id: 'services', label: 'Settings: services', icon: 'server', keywords: 'radarr sonarr lidarr prowlarr jellyfin tmdb', run: () => navigate('/settings/services') },
+      { id: 'services', label: 'Settings: services', icon: 'server', keywords: 'radarr sonarr lidarr prowlarr jellyfin tmdb slskd soulseek', run: () => navigate('/settings/services') },
       { id: 'rules', label: 'Settings: where requests go', icon: 'sliders', keywords: 'quality profile folder approvals limits', run: () => navigate('/settings/requests') },
     ] : []),
     { id: 'settings', label: 'Settings', icon: 'settings', hint: ',', run: () => navigate('/settings') },

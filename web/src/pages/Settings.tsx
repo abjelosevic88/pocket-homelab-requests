@@ -177,6 +177,7 @@ const SERVICES: { name: ServiceName; label: string; icon: string; what: string; 
   { name: 'prowlarr', label: 'Prowlarr', icon: 'search', what: 'Shows which indexers are down (read only).', placeholder: 'http://host.docker.internal:9696' },
   { name: 'jellyfin', label: 'Jellyfin', icon: 'play', what: 'Confirms a title is really there to watch, and gives the Watch link.', placeholder: 'http://host.docker.internal:8096' },
   { name: 'jellyseerr', label: 'Jellyseerr', icon: 'inbox', what: 'Only to bring old requests over (Backup & data).', placeholder: 'http://host.docker.internal:5055' },
+  { name: 'slskd', label: 'slskd (Soulseek)', icon: 'download', what: 'Shows Soulseek downloads of requested albums (Soularr fetches them for Lidarr).', placeholder: 'http://host.docker.internal:5030' },
   { name: 'tmdb', label: 'TMDb', icon: 'star', what: 'Trending and popular shows on Discover. Films don’t need it.', noURL: true, placeholder: '' },
 ]
 

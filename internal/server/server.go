@@ -274,6 +274,7 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 			{Type: "jellyfin", Reason: "Check that what arrived can really be watched, and start a library scan when it can't"},
 			{Type: "jellyseerr", Reason: "Bring over the requests made in Jellyseerr"},
 			{Type: "tmdb", Reason: "Trending and popular shows to discover"},
+			{Type: "slskd", Reason: "Show Soulseek downloads of requested albums (Soularr fetches them for Lidarr)"},
 		},
 	}
 	if s.cfg.BaseURL != "" {

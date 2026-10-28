@@ -163,6 +163,10 @@ type Settings struct {
 	JellyseerrPublic string `json:"jellyseerr_public_url"`
 	TMDBMode         string `json:"tmdb_mode"`
 	TMDBKey          string `json:"tmdb_key"`
+	SlskdMode        string `json:"slskd_mode"`
+	SlskdURL         string `json:"slskd_url"`
+	SlskdKey         string `json:"slskd_key"`
+	SlskdPublic      string `json:"slskd_public_url"`
 
 	// Where new requests go (0 / "" = the first profile / root folder).
 	MovieProfileID      int64  `json:"movie_profile_id"`

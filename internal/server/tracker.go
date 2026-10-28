@@ -237,13 +237,32 @@ func (s *Server) lookAlbum(ctx context.Context, c *arr.Client, rq *store.Request
 		v.state, v.detail = "unreleased", "Comes out on "+d.Format("2 January 2006")
 		return v, nil
 	}
+	// Soularr fetches Lidarr's wanted albums from Soulseek, outside Lidarr's queue
+	artist := rq.Subtitle
+	if al.Artist != nil && al.Artist.ArtistName != "" {
+		artist = al.Artist.ArtistName
+	}
+	if list, err := s.soulseekDownloads(ctx); err == nil {
+		if sv := soulseekView(v, soulseekFor(list, artist, firstNonEmpty(al.Title, rq.Title))); sv != nil {
+			if sv.state == "searching" && v.have > 0 {
+				sv.state = "partial"
+			}
+			return *sv, nil
+		}
+	}
+	if e, ok := s.soularrBlacklist()[al.ID]; ok {
+		v.state, v.detail = "attention", soularrDetail(e)
+		return v, nil
+	}
 	if v.have > 0 {
 		v.state, v.detail = "partial", fmt.Sprintf("%d of %d tracks are here", v.have, v.total)
 		return v, nil
 	}
-	v.state, v.detail = "searching", "Looking for a copy"
+	v.state, v.detail = "searching", lookingDetail(s)
 	if h, err := c.AlbumHistory(ctx, al.ArtistID, al.ID); err == nil {
-		v.detail = searchDetail(h)
+		if d := searchDetail(h); d != "Looking for a copy" {
+			v.detail = d
+		}
 	}
 	return v, nil
 }

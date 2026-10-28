@@ -8,7 +8,7 @@ import { Icon } from '../components/icons'
 import { Bar, Poster, usePoll } from '../components/media'
 import { Empty, Loading, PageHeader } from '../components/ui'
 
-const APP: Record<string, string> = { radarr: 'Radarr', sonarr: 'Sonarr', lidarr: 'Lidarr' }
+const APP: Record<string, string> = { radarr: 'Radarr', sonarr: 'Sonarr', lidarr: 'Lidarr', slskd: 'Soulseek' }
 
 function stateText(d: QueueRow): { text: string; tone: string } {
   const st = d.state || d.status
