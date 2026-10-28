@@ -348,6 +348,8 @@ func plainMessage(m string) string {
 	switch {
 	case strings.Contains(m, "matched to series by ID"), strings.Contains(m, "Movie title mismatch"):
 		return "the file name doesn't match the title, so it needs a manual import (library care does this when it is switched on)"
+	case strings.Contains(strings.ToLower(m), "no files found are eligible") && strings.Contains(strings.ToLower(m), ".exe"):
+		return "the download is a fake release (a program, not a video); replace the download to look for another copy"
 	case strings.Contains(strings.ToLower(m), "no files found are eligible"):
 		return "no usable video file was found in the download"
 	case strings.Contains(m, "Not an upgrade"):

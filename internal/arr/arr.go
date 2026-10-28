@@ -358,9 +358,17 @@ func (q QueueItem) Messages() string {
 	return strings.Join(out, "; ")
 }
 
-// Stuck reports whether the item waits for a person (import blocked or failed).
+// Stuck reports whether the item waits for a person: import blocked or
+// failed, or finished with a warning the import can't get past (e.g. "No
+// files found are eligible for import" for a fake .exe release).
 func (q QueueItem) Stuck() bool {
-	return q.TrackedDownloadState == "importBlocked" || q.TrackedDownloadState == "importFailed"
+	switch q.TrackedDownloadState {
+	case "importBlocked", "importFailed":
+		return true
+	case "importPending":
+		return q.TrackedDownloadStatus == "warning" && q.Messages() != ""
+	}
+	return false
 }
 
 // Failed reports whether the download itself failed.

@@ -12,7 +12,7 @@ const APP: Record<string, string> = { radarr: 'Radarr', sonarr: 'Sonarr', lidarr
 
 function stateText(d: QueueRow): { text: string; tone: string } {
   const st = d.state || d.status
-  if (st === 'importBlocked' || st === 'importFailed') return { text: 'Needs a look', tone: 'warn' }
+  if (d.stuck || st === 'importBlocked' || st === 'importFailed') return { text: 'Needs a look', tone: 'warn' }
   if (st === 'failed' || st === 'failedPending' || d.status === 'failed') return { text: 'Failed', tone: 'bad' }
   if (st === 'importPending' || st === 'importing') return { text: 'Moving into the library', tone: 'accent' }
   if (d.status === 'paused') return { text: 'Paused', tone: 'muted' }

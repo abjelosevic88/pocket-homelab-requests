@@ -1543,6 +1543,7 @@ func (s *Server) handleDownloads(w http.ResponseWriter, r *http.Request) {
 		Protocol  string  `json:"protocol"`
 		Added     string  `json:"added"`
 		RequestID int64   `json:"request_id"`
+		Stuck     bool    `json:"stuck"`
 	}
 	mine, _, _ := s.store.ListRequests(ctx, uid, store.RequestFilter{Status: "approved", Limit: 500})
 	own := map[string]int64{}
@@ -1565,7 +1566,7 @@ func (s *Server) handleDownloads(w http.ResponseWriter, r *http.Request) {
 		for _, it := range q {
 			x := row{App: app, ID: it.ID, Title: it.Title, Progress: it.Progress(), ETA: it.EstimatedCompletionTime, Size: it.Size, SizeLeft: it.SizeLeft,
 				Status: it.Status, State: it.TrackedDownloadState, Messages: it.Messages(), Client: it.DownloadClient, Indexer: it.Indexer,
-				Quality: it.Quality.Quality.Name, Protocol: it.Protocol, Added: it.Added}
+				Quality: it.Quality.Quality.Name, Protocol: it.Protocol, Added: it.Added, Stuck: it.Stuck()}
 			switch app {
 			case "radarr":
 				x.Kind = "movie"

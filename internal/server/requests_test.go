@@ -478,3 +478,19 @@ func TestRemoveFromServer(t *testing.T) {
 		t.Fatalf("last event = %+v", last)
 	}
 }
+
+func TestFakeReleaseIsStuck(t *testing.T) {
+	it := arr.QueueItem{SeriesID: 1, Status: "completed", TrackedDownloadStatus: "warning", TrackedDownloadState: "importPending",
+		StatusMessages: []arr.StatusMessage{{Messages: []string{"No files found are eligible for import in /media/downloads/Show S02E10 1080p WEB.exe"}}}}
+	if !it.Stuck() {
+		t.Fatal("a finished download with a blocking warning is stuck")
+	}
+	v := queueView(view{}, []arr.QueueItem{it}, "episodes")
+	if v.state != "attention" || !strings.Contains(v.detail, "fake release") {
+		t.Fatalf("view = %+v", v)
+	}
+	ok := arr.QueueItem{TrackedDownloadStatus: "ok", TrackedDownloadState: "importPending"}
+	if ok.Stuck() {
+		t.Fatal("a normal pending import isn't stuck")
+	}
+}

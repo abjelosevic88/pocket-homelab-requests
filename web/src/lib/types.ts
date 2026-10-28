@@ -112,7 +112,7 @@ export interface Release {
 
 export interface ImportPreview { download_id: string; ok: boolean; reason: string; files: { name: string; size: number; maps_to: string; rejections: string }[] }
 
-export interface QueueRow {
+export interface QueueRow { stuck?: boolean;
   app: string; id: number; kind: Kind; title: string; subtitle: string; poster: string; progress: number; eta: string
   size: number; size_left: number; status: string; state: string; messages: string; client: string; indexer: string; quality: string; protocol: string; request_id: number
 }

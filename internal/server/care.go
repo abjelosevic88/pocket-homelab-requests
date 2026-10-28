@@ -558,7 +558,7 @@ func (s *Server) careUnblockImports(ctx context.Context, cr *careRound, mode str
 					reason = "the manual import didn't go through"
 				}
 			}
-			s.alert(ctx, "unblock_imports", app, item, arrID, title, "Stuck in the queue and needs a manual import: "+reason)
+			s.alert(ctx, "unblock_imports", app, item, arrID, title, "Stuck in the queue: "+reason)
 		}
 	}
 }
