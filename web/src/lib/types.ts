@@ -35,7 +35,7 @@ export interface Settings {
   movie_quota_week: number; series_quota_week: number; album_quota_week: number
   members_can_search: boolean
 
-  care_search_missed: CareMode; care_retry_failed: CareMode; care_unblock_imports: CareMode; care_jellyfin_scan: CareMode; care_lidarr: boolean
+  care_search_missed: CareMode; care_retry_failed: CareMode; care_unblock_imports: CareMode; care_jellyfin_scan: CareMode; care_drop_fakes: CareMode; care_lidarr: boolean
 
   // personal
   notify_url: string; notify_format: string; notify_configured?: boolean

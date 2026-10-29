@@ -208,6 +208,7 @@ type Settings struct {
 	CareRetryFailed    string `json:"care_retry_failed"`
 	CareUnblockImports string `json:"care_unblock_imports"`
 	CareJellyfinScan   string `json:"care_jellyfin_scan"`
+	CareDropFakes      string `json:"care_drop_fakes"`
 	CareLidarr         bool   `json:"care_lidarr"` // also look after Lidarr albums
 
 	// ---- personal ----

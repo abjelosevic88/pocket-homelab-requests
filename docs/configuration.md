@@ -39,11 +39,12 @@ Commands: `pocket-requests backup [-o FILE]`, `pocket-requests reset-password [-
 
 ## Library care
 
-Settings live on the Library care page (admins), per job: **Off**, **Watch only** (writes down what it would do, touches nothing — the default, so it can run next to existing scripts) or **Fix automatically**.
+Settings live on the Library care page (admins), per job: **Off**, **Watch only** (writes down what it would do, touches nothing — the default, so it can run next to existing scripts) or **Fix automatically** (the default for *Throw away fake releases*, which no usual script does).
 
 | Job | What it does |
 |---|---|
 | Search what was never searched | Monitored, no file, added in the last 3 days, no history at all → a search (at most 3) |
 | Retry failed downloads | Monitored, missing, grabbed before, a failed download, nothing live in the queue → clear failed leftovers (blocklisted) and search again, backing off 30 min → 24 h |
 | Finish blocked imports | "matched to series by ID" / "Movie title mismatch" → a manual import, only when every previewed file maps to the grabbed title (and episodes) with no rejections; anything else stuck is reported once |
+| Throw away fake releases | A download of an episode that airs 24 h or more from now, or of a film before its cinema or home release, or one that is a program (.exe, .scr, .msi, …) → removed and blocklisted; when it came early there's no new search (that finds only more fakes — the real one is picked up once it's out). Closer than 24 h, and for albums (real leaks happen), the date counts only when the download also came to nothing |
 | Make Jellyfin show new arrivals | A requested title is in the library but not in Jellyfin → a library scan (at most every 30 min, reported after 3) |

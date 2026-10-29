@@ -272,8 +272,12 @@ func queueView(v view, q []arr.QueueItem, what string) view {
 	d := downloadView(q)
 	v.eta = d.ETA
 	stuck, failed, importing, paused, delayed := false, false, false, false, false
-	msg := ""
+	msg, fake := "", ""
+	now := time.Now().UTC()
 	for _, it := range q {
+		if why, _ := fakeRelease(it, now); why != "" && fake == "" {
+			fake = why
+		}
 		switch {
 		case it.Stuck():
 			stuck = true
@@ -290,6 +294,9 @@ func queueView(v view, q []arr.QueueItem, what string) view {
 		}
 	}
 	switch {
+	case fake != "":
+		v.state = "attention"
+		v.detail = "The download is a fake: " + fake + " — library care throws these away (or replace the download)"
 	case stuck:
 		v.state = "attention"
 		v.detail = "Downloaded, but it won't go into the library on its own"

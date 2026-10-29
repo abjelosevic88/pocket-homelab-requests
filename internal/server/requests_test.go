@@ -486,7 +486,7 @@ func TestFakeReleaseIsStuck(t *testing.T) {
 		t.Fatal("a finished download with a blocking warning is stuck")
 	}
 	v := queueView(view{}, []arr.QueueItem{it}, "episodes")
-	if v.state != "attention" || !strings.Contains(v.detail, "fake release") {
+	if v.state != "attention" || !strings.Contains(v.detail, "a fake: it is a program") {
 		t.Fatalf("view = %+v", v)
 	}
 	ok := arr.QueueItem{TrackedDownloadStatus: "ok", TrackedDownloadState: "importPending"}

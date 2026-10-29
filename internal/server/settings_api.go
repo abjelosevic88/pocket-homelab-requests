@@ -63,7 +63,7 @@ func (s *Server) publicSettings(ctx context.Context, u *store.User, st store.Set
 			"album_profile_id": st.AlbumProfileID, "album_metadata_profile_id": st.AlbumMetadataID, "music_root": st.MusicRoot,
 			"member_policy": st.MemberPolicy, "movie_quota_week": st.MovieQuotaWeek, "series_quota_week": st.SeriesQuotaWeek, "album_quota_week": st.AlbumQuotaWeek,
 			"care_search_missed": careMode(st, "search_missed"), "care_retry_failed": careMode(st, "retry_failed"),
-			"care_unblock_imports": careMode(st, "unblock_imports"), "care_jellyfin_scan": careMode(st, "jellyfin_scan"), "care_lidarr": st.CareLidarr,
+			"care_unblock_imports": careMode(st, "unblock_imports"), "care_jellyfin_scan": careMode(st, "jellyfin_scan"), "care_drop_fakes": careMode(st, "drop_fakes"), "care_lidarr": st.CareLidarr,
 		} {
 			out[k] = v
 		}
@@ -244,6 +244,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			!pick("care_retry_failed", &cur.CareRetryFailed, in.CareRetryFailed, "off", "watch", "fix") ||
 			!pick("care_unblock_imports", &cur.CareUnblockImports, in.CareUnblockImports, "off", "watch", "fix") ||
 			!pick("care_jellyfin_scan", &cur.CareJellyfinScan, in.CareJellyfinScan, "off", "watch", "fix") ||
+			!pick("care_drop_fakes", &cur.CareDropFakes, in.CareDropFakes, "off", "watch", "fix") ||
 			!intIn("movie_quota_week", &cur.MovieQuotaWeek, in.MovieQuotaWeek, 0, 100) ||
 			!intIn("series_quota_week", &cur.SeriesQuotaWeek, in.SeriesQuotaWeek, 0, 100) ||
 			!intIn("album_quota_week", &cur.AlbumQuotaWeek, in.AlbumQuotaWeek, 0, 100) {

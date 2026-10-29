@@ -322,10 +322,11 @@ type QueueItem struct {
 		} `json:"quality"`
 	} `json:"quality"`
 	// Filled in by the queue call with include* flags.
-	Movie  *Movie  `json:"movie,omitempty"`
-	Series *Series `json:"series,omitempty"`
-	Album  *Album  `json:"album,omitempty"`
-	Artist *Artist `json:"artist,omitempty"`
+	Movie   *Movie   `json:"movie,omitempty"`
+	Series  *Series  `json:"series,omitempty"`
+	Episode *Episode `json:"episode,omitempty"`
+	Album   *Album   `json:"album,omitempty"`
+	Artist  *Artist  `json:"artist,omitempty"`
 }
 
 // Progress is 0..1.
@@ -384,7 +385,7 @@ func (c *Client) Queue(ctx context.Context) ([]QueueItem, error) {
 		q.Set("includeMovie", "true")
 	case "sonarr":
 		q.Set("includeSeries", "true")
-		q.Set("includeEpisode", "false")
+		q.Set("includeEpisode", "true") // air dates: a download of an episode that hasn't aired is a fake
 	case "lidarr":
 		q.Set("includeArtist", "true")
 		q.Set("includeAlbum", "true")

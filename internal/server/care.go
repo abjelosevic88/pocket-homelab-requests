@@ -32,6 +32,11 @@ import (
 //     waits forever for a manual import ("matched to series by ID", "Movie
 //     title mismatch") → run that import, but only when the preview agrees
 //     with the grab; anything else stuck is reported once.
+//   - drop_fakes: a download of an episode that hasn't aired, a film that
+//     isn't out or an album before its release date, or one that is a program
+//     (.exe), is a fake → remove it and blocklist it; when it came early don't
+//     search again (that only finds more fakes; the real one is picked up
+//     once it's out).
 //   - jellyfin_scan: a requested title is in the library but Jellyfin doesn't
 //     show it → start a library scan (at most every 30 minutes), report it
 //     after three scans (usually a misidentified title).
@@ -43,6 +48,7 @@ type careJob struct {
 }
 
 var careJobs = []careJob{
+	{"drop_fakes", "Throw away fake releases", "Downloads of an episode that hasn't aired yet, a film that isn't out or an album before its release date are fakes, as is anything that turns out to be a program (.exe). These are removed and blocklisted."},
 	{"search_missed", "Search what was never searched", "Films and shows added without “Start search” are never looked for. These get a search (at most three)."},
 	{"retry_failed", "Retry failed downloads", "After a failed download Radarr and Sonarr search once and then give up. These are searched again, waiting longer each time (30 minutes up to a day)."},
 	{"unblock_imports", "Finish blocked imports", "Downloads whose file name doesn't match the title wait for a manual import. These are imported when the preview matches what was grabbed; anything else is reported."},
@@ -50,7 +56,7 @@ var careJobs = []careJob{
 }
 
 func careMode(st store.Settings, job string) string {
-	m := map[string]string{"search_missed": st.CareSearchMissed, "retry_failed": st.CareRetryFailed, "unblock_imports": st.CareUnblockImports, "jellyfin_scan": st.CareJellyfinScan}[job]
+	m := map[string]string{"drop_fakes": st.CareDropFakes, "search_missed": st.CareSearchMissed, "retry_failed": st.CareRetryFailed, "unblock_imports": st.CareUnblockImports, "jellyfin_scan": st.CareJellyfinScan}[job]
 	switch m {
 	case "off", "watch", "fix":
 		return m
@@ -64,6 +70,7 @@ type careRound struct {
 	st      store.Settings
 	clients map[string]*arr.Client
 	queues  map[string][]arr.QueueItem
+	fakes   map[string]bool // download ids drop_fakes owns
 	started string
 }
 
@@ -112,7 +119,7 @@ func (s *Server) runCare(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	cr := &careRound{s: s, st: st, clients: map[string]*arr.Client{}, queues: map[string][]arr.QueueItem{}, started: store.Now()}
+	cr := &careRound{s: s, st: st, clients: map[string]*arr.Client{}, queues: map[string][]arr.QueueItem{}, fakes: map[string]bool{}, started: store.Now()}
 	if s.cfg.DemoData && !s.boxUp(ctx, "radarr") && !s.boxUp(ctx, "sonarr") {
 		s.careLast.Store(time.Now())
 		return
@@ -121,6 +128,7 @@ func (s *Server) runCare(ctx context.Context) {
 		key string
 		run func(context.Context, *careRound, string)
 	}{
+		{"drop_fakes", s.careDropFakes},
 		{"unblock_imports", s.careUnblockImports},
 		{"search_missed", s.careSearchMissed},
 		{"retry_failed", s.careRetryFailed},
@@ -466,6 +474,162 @@ func limitStrings(xs []string, n int) []string {
 	return append(out, fmt.Sprintf("+%d more", len(xs)-n))
 }
 
+// ---- drop_fakes ----
+
+// fakeLead is how long before the air or release date a download counts as
+// fake on that alone; closer to it (and for albums) it also has to have come
+// to nothing.
+const fakeLead = 24 * time.Hour
+
+// executable is a program in a download: never an episode, a film or an album.
+var executable = regexp.MustCompile(`(?i)\.(exe|scr|msi|lnk|bat|cmd)\b|executable file`)
+
+// outOn is when the thing a queue item is for comes out, with its name;
+// zero when that's unknown or already past.
+func outOn(it arr.QueueItem, now time.Time) (time.Time, string) {
+	parse := func(v string) time.Time {
+		for _, f := range []string{time.RFC3339, "2006-01-02"} {
+			if t, err := time.Parse(f, v); err == nil {
+				return t
+			}
+		}
+		return time.Time{}
+	}
+	switch {
+	case it.Episode != nil:
+		if t := parse(it.Episode.AirDateUTC); t.After(now) {
+			return t, "the episode airs"
+		}
+	case it.Movie != nil:
+		// out = in cinemas or released at home, whichever comes first
+		var first time.Time
+		for _, v := range []string{it.Movie.InCinemas, it.Movie.DigitalRelease, it.Movie.PhysicalRelease} {
+			if t := parse(v); !t.IsZero() && (first.IsZero() || t.Before(first)) {
+				first = t
+			}
+		}
+		if first.After(now) {
+			return first, "the film is out"
+		}
+	case it.Album != nil:
+		if t := parse(it.Album.ReleaseDate); t.After(now) {
+			return t, "the album is out"
+		}
+	}
+	return time.Time{}, ""
+}
+
+// fakeRelease says why a queue item is a fake ("" when it looks real); early
+// = it came before the thing is out, so searching again now finds only more
+// fakes.
+func fakeRelease(it arr.QueueItem, now time.Time) (why string, early bool) {
+	msg := it.Messages()
+	program := executable.MatchString(msg)
+	unusable := strings.Contains(strings.ToLower(msg), "no files found are eligible")
+	// albums do leak for real days before their date, so for them the date alone isn't enough
+	alone := it.Album == nil && it.Artist == nil
+	if t, what := outOn(it, now); !t.IsZero() && ((alone && t.Sub(now) >= fakeLead) || program || unusable) {
+		return "it turned up before " + what + " (" + t.Format("Mon 2 Jan") + ")", true
+	}
+	if program {
+		return "it is a program, not a video or music", false
+	}
+	return "", false
+}
+
+// queueLabel names a queue item for people: "Dark Matter S02E10".
+func queueLabel(app string, it arr.QueueItem) (title, kind string, arrID int64) {
+	switch app {
+	case "sonarr":
+		title = it.Title
+		if it.Series != nil {
+			title = it.Series.Title
+			if it.Episode != nil {
+				title += fmt.Sprintf(" S%02dE%02d", it.Episode.SeasonNumber, it.Episode.EpisodeNumber)
+			}
+		}
+		return title, "series", it.SeriesID
+	case "lidarr":
+		title = it.Title
+		if it.Album != nil {
+			title = it.Album.Title
+			if it.Artist != nil {
+				title = it.Artist.ArtistName + " — " + title
+			}
+		}
+		return title, "album", it.AlbumID
+	}
+	title = it.Title
+	if it.Movie != nil {
+		title = it.Movie.Title
+	}
+	return title, "movie", it.MovieID
+}
+
+func (s *Server) careDropFakes(ctx context.Context, cr *careRound, mode string) {
+	now := time.Now().UTC()
+	apps := []string{"sonarr", "radarr"}
+	if cr.st.CareLidarr {
+		apps = append(apps, "lidarr")
+	}
+	for _, app := range apps {
+		c := cr.client(ctx, app)
+		if c == nil {
+			continue
+		}
+		q, ok := cr.queue(ctx, app)
+		if !ok {
+			continue
+		}
+		groups := map[string][]arr.QueueItem{}
+		var order []string
+		for _, it := range q {
+			dl := firstNonEmpty(it.DownloadID, "Q"+strconv.FormatInt(it.ID, 10))
+			if _, ok := groups[dl]; !ok {
+				order = append(order, dl)
+			}
+			groups[dl] = append(groups[dl], it)
+		}
+		removed := false
+		for _, dl := range order {
+			records := groups[dl]
+			var bad arr.QueueItem
+			why, early := "", false
+			for _, it := range records {
+				if why, early = fakeRelease(it, now); why != "" {
+					bad = it
+					break
+				}
+			}
+			if why == "" {
+				continue
+			}
+			cr.fakes[dl] = true
+			title, kind, arrID := queueLabel(app, bad)
+			what := "throw away the download of " + title + " — " + why + "; it is blocklisted"
+			if early {
+				what += " and the real one is picked up once it's out"
+			} else {
+				what += " and another copy is searched for"
+			}
+			if s.act(ctx, mode, "drop_fakes", app, "D"+dl, arrID, title, what, func() error {
+				// one record removes the whole download, even a season pack
+				return c.RemoveFromQueue(ctx, records[0].ID, true, early)
+			}) {
+				removed = true
+				msg := "A fake download (" + why + ") was thrown away by library care"
+				if early {
+					msg += "; the real one is picked up once it's out"
+				}
+				s.onTimeline(ctx, kind, arrID, "fixed", msg)
+			}
+		}
+		if removed {
+			delete(cr.queues, app) // the later jobs see the queue as it is now
+		}
+	}
+}
+
 // ---- unblock_imports ----
 
 // byIDBlock is the arr's refusal to import a release it matched only by id.
@@ -486,7 +650,7 @@ func (s *Server) careUnblockImports(ctx context.Context, cr *careRound, mode str
 		groups := map[string][]arr.QueueItem{}
 		var order []string
 		for _, it := range q {
-			if it.Stuck() && it.DownloadID != "" {
+			if it.Stuck() && it.DownloadID != "" && !cr.fakes[it.DownloadID] {
 				if _, ok := groups[it.DownloadID]; !ok {
 					order = append(order, it.DownloadID)
 				}

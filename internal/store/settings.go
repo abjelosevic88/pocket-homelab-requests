@@ -18,7 +18,7 @@ var boxKeys = map[string]bool{"title": true, "setup_complete": true,
 	"album_profile_id": true, "album_metadata_profile_id": true, "music_root": true,
 	"member_policy": true, "movie_quota_week": true, "series_quota_week": true, "album_quota_week": true, "members_can_search": true,
 	"seerr_key_hash": true, "seerr_key_hint": true,
-	"care_search_missed": true, "care_retry_failed": true, "care_unblock_imports": true, "care_jellyfin_scan": true, "care_lidarr": true,
+	"care_search_missed": true, "care_retry_failed": true, "care_unblock_imports": true, "care_jellyfin_scan": true, "care_drop_fakes": true, "care_lidarr": true,
 }
 
 // ServiceNames are the services the box reaches (each has <name>_mode, _url, _key, _public_url).
@@ -42,7 +42,8 @@ func (s *Store) defaults() Settings {
 	return Settings{Title: DefaultTitle, DateFormat: "auto", TimeFormat: "auto", WeekStart: 1,
 		MovieAvailability: "released", SeriesSeasonFolders: true, SeriesType: "standard",
 		MemberPolicy: "approve", MembersCanSearch: true,
-		CareSearchMissed: "watch", CareRetryFailed: "watch", CareUnblockImports: "watch", CareJellyfinScan: "watch", CareLidarr: true,
+		// drop_fakes starts on: no old timer does that job
+		CareSearchMissed: "watch", CareRetryFailed: "watch", CareUnblockImports: "watch", CareJellyfinScan: "watch", CareDropFakes: "fix", CareLidarr: true,
 		NotifyFormat: "apprise", NotifyApproved: true, NotifyAvailable: true, NotifyFailed: true,
 		NotifyNewRequests: true, NotifyProblems: true, NotifyCare: true, AIProvider: "auto"}
 }

@@ -9,7 +9,7 @@ import { Empty, Loading, PageHeader, Segmented, Switch, useAsync, useToast } fro
 import { Select } from '../components/Select'
 
 const SETTING: Record<string, keyof Settings> = {
-  search_missed: 'care_search_missed', retry_failed: 'care_retry_failed', unblock_imports: 'care_unblock_imports', jellyfin_scan: 'care_jellyfin_scan',
+  search_missed: 'care_search_missed', retry_failed: 'care_retry_failed', unblock_imports: 'care_unblock_imports', jellyfin_scan: 'care_jellyfin_scan', drop_fakes: 'care_drop_fakes',
 }
 const RESULT: Record<CareAction['result'], { label: string; tone: string }> = {
   done: { label: 'Done', tone: 'ok' }, would: { label: 'Would do', tone: 'neutral' }, failed: { label: 'Failed', tone: 'bad' }, alert: { label: 'Needs a look', tone: 'warn' },
