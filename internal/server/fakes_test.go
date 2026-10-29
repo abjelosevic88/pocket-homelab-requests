@@ -18,7 +18,9 @@ func TestFakeRelease(t *testing.T) {
 	now := time.Date(2026, 10, 29, 7, 0, 0, 0, time.UTC)
 	day := func(d int) string { return now.AddDate(0, 0, d).Format(time.RFC3339) }
 	msg := func(m string) []arr.StatusMessage { return []arr.StatusMessage{{Messages: []string{m}}} }
-	ep := func(air string) *arr.Episode { return &arr.Episode{SeasonNumber: 2, EpisodeNumber: 10, AirDateUTC: air} }
+	ep := func(air string) *arr.Episode {
+		return &arr.Episode{SeasonNumber: 2, EpisodeNumber: 10, AirDateUTC: air}
+	}
 	cases := []struct {
 		name  string
 		it    arr.QueueItem
