@@ -81,7 +81,7 @@ func newBookBox(t *testing.T) (*testBox, *fakeBooks) {
 	tb.s.cfg.BooksIngestDir = t.TempDir()
 	tb.s.cfg.BooksAudiobookDir = t.TempDir()
 	b, _ := json.Marshal(arr.Book{Key: "ol:OL1W", Title: "Project Hail Mary", Authors: []string{"Andy Weir"}, Languages: []string{"en"}})
-	_ = tb.st.CachePut(ctx, "bookmeta:ol:OL1W", string(b))
+	_ = tb.st.CachePut(ctx, "bookmeta:v2:ol:OL1W", string(b))
 	return tb, fb
 }
 
@@ -244,5 +244,20 @@ func TestBookPageTakesAnEscapedKey(t *testing.T) {
 		if code, out := tb.do(tb.aliceTok, "GET", path, nil); code != http.StatusOK || out["title"] != "Project Hail Mary" {
 			t.Fatalf("%s: %d %v", path, code, out)
 		}
+	}
+}
+
+func TestBookQueriesUseTheLanguagesTitle(t *testing.T) {
+	rq := &store.Request{Title: "The Lost Symbol"}
+	writeBookInfo(rq, bookInfo{Authors: []string{"Dan Brown"}, TitlesByLanguage: map[string][]string{"es": {"El Símbolo Perdido"}, "sr": {"Izgubljeni simbol"}}})
+	got := bookQueries(rq, []string{"en", "sr", "hr"})
+	if len(got) != 3 || got[2] != "Izgubljeni simbol" {
+		t.Fatalf("%q", got)
+	}
+	info := readBookInfo(rq)
+	info.Language = "es"
+	writeBookInfo(rq, info)
+	if got := bookQueries(rq, []string{"en", "sr"}); got[len(got)-1] != "El Símbolo Perdido" {
+		t.Fatalf("%q", got)
 	}
 }

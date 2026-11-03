@@ -47,6 +47,9 @@ type Book struct {
 	// Other titles the book goes by (translations from its editions): a
 	// release is often named in the language it is in.
 	AltTitles []string `json:"alt_titles"`
+	// The titles of its editions by language (sr → "Izgubljeni simbol"): a
+	// book wanted in Serbian is also searched for by its Serbian title.
+	TitlesByLanguage map[string][]string `json:"titles_by_language,omitempty"`
 	// Audible's audiobook, when one was found.
 	ASIN       string   `json:"asin"`
 	Narrators  []string `json:"narrators"`
@@ -287,7 +290,7 @@ func (m *BookMeta) OpenLibraryWork(ctx context.Context, id string) (*Book, error
 			} `json:"languages"`
 		} `json:"entries"`
 	}
-	if err := m.get(ctx, "https://openlibrary.org/works/"+id+"/editions.json?limit=100", &eds); err == nil {
+	if err := m.get(ctx, "https://openlibrary.org/works/"+id+"/editions.json?limit=500", &eds); err == nil {
 		seen := map[string]bool{BookFold(b.Title): true}
 		for _, e := range eds.Entries {
 			var codes []string
@@ -297,6 +300,14 @@ func (m *BookMeta) OpenLibraryWork(ctx context.Context, id string) (*Book, error
 			for _, l := range langs2(codes) {
 				if !containsS(b.Languages, l) {
 					b.Languages = append(b.Languages, l)
+				}
+				if t := strings.TrimSpace(e.Title); t != "" && BookFold(t) != BookFold(b.Title) {
+					if b.TitlesByLanguage == nil {
+						b.TitlesByLanguage = map[string][]string{}
+					}
+					if list := b.TitlesByLanguage[l]; len(list) < 3 && !containsFold(list, t) {
+						b.TitlesByLanguage[l] = append(list, t)
+					}
 				}
 			}
 			if k := BookFold(e.Title); k != "" && !seen[k] && len(b.AltTitles) < 12 {
@@ -672,6 +683,15 @@ func firstStrings(s []string, n int) []string {
 		s = s[:n]
 	}
 	return nonNilS(s)
+}
+
+func containsFold(xs []string, s string) bool {
+	for _, x := range xs {
+		if BookFold(x) == BookFold(s) {
+			return true
+		}
+	}
+	return false
 }
 
 func containsS(xs []string, s string) bool {

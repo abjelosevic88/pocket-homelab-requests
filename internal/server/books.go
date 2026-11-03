@@ -36,18 +36,20 @@ var (
 
 // bookInfo is what a book request remembers about its book (requests.book_meta).
 type bookInfo struct {
-	Authors     []string `json:"authors"`
-	AuthorKeys  []string `json:"author_keys,omitempty"`
-	ISBN        string   `json:"isbn,omitempty"`
-	Languages   []string `json:"languages,omitempty"` // the book's editions
-	AltTitles   []string `json:"alt_titles,omitempty"`
-	Series      string   `json:"series,omitempty"`
-	SeriesIndex string   `json:"series_index,omitempty"`
-	Narrators   []string `json:"narrators,omitempty"`
-	ASIN        string   `json:"asin,omitempty"`
-	RuntimeMin  int      `json:"runtime_min,omitempty"`
-	Pages       int      `json:"pages,omitempty"`
-	Publisher   string   `json:"publisher,omitempty"`
+	Authors    []string `json:"authors"`
+	AuthorKeys []string `json:"author_keys,omitempty"`
+	ISBN       string   `json:"isbn,omitempty"`
+	Languages  []string `json:"languages,omitempty"` // the book's editions
+	AltTitles  []string `json:"alt_titles,omitempty"`
+	// Edition titles by language, for searching in the language wanted.
+	TitlesByLanguage map[string][]string `json:"titles_by_language,omitempty"`
+	Series           string              `json:"series,omitempty"`
+	SeriesIndex      string              `json:"series_index,omitempty"`
+	Narrators        []string            `json:"narrators,omitempty"`
+	ASIN             string              `json:"asin,omitempty"`
+	RuntimeMin       int                 `json:"runtime_min,omitempty"`
+	Pages            int                 `json:"pages,omitempty"`
+	Publisher        string              `json:"publisher,omitempty"`
 	// What the person wants: a language ("" = any the box reads) and
 	// whether a dramatisation (GraphicAudio, full cast) is the point.
 	Language   string `json:"language,omitempty"`
@@ -127,7 +129,7 @@ func (s *Server) bookMeta() *arr.BookMeta { return arr.NewBookMeta(s.cfg.UserAge
 
 // bookCached reads a book source's answer through the cache (a week; stale beats nothing).
 func bookCached[T any](s *Server, ctx context.Context, key string, fetch func() (*T, error)) (*T, error) {
-	ck := "bookmeta:" + key
+	ck := "bookmeta:v2:" + key // v2: editions' titles by language
 	if v, at, ok := s.store.CacheGet(ctx, ck); ok {
 		if t, err := time.Parse(time.RFC3339Nano, at); err == nil && time.Since(t) < 7*24*time.Hour {
 			var out T
@@ -662,6 +664,14 @@ func (s *Server) describeBook(ctx context.Context, rq *store.Request, uid int64)
 	}
 	info := readBookInfo(rq)
 	info.Authors, info.AuthorKeys, info.ISBN, info.Languages, info.AltTitles = nonNilStrings(b.Authors), b.AuthorKeys, b.ISBN, b.Languages, b.AltTitles
+	info.TitlesByLanguage = b.TitlesByLanguage
+	for _, ts := range b.TitlesByLanguage { // every edition title names the book
+		for _, t := range ts {
+			if !containsFoldS(info.AltTitles, t) {
+				info.AltTitles = append(info.AltTitles, t)
+			}
+		}
+	}
 	info.Series, info.SeriesIndex, info.Pages, info.Publisher = b.Series, b.SeriesIndex, b.Pages, b.Publisher
 	rq.Title, rq.Subtitle, rq.Year, rq.Poster, rq.Overview, rq.ReleaseDate = b.Title, strings.Join(firstN(b.Authors, 3), ", "), b.Year, b.Cover, arr.Trim(b.Description, 600), b.Published
 	if rq.Kind == "audiobook" {

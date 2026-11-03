@@ -72,7 +72,7 @@ func (s *Server) bookWant(rq *store.Request, box store.Settings) arr.BookWant {
 // bookQueries are the searches made for a book: title with the author's
 // surname, the title alone, and (for a book wanted in another language)
 // one of its translated titles.
-func bookQueries(rq *store.Request) []string {
+func bookQueries(rq *store.Request, langs []string) []string {
 	info := readBookInfo(rq)
 	title := strings.TrimSpace(strings.SplitN(rq.Title, ":", 2)[0])
 	var qs []string
@@ -82,10 +82,17 @@ func bookQueries(rq *store.Request) []string {
 		}
 	}
 	qs = append(qs, title)
-	if info.Language != "" && info.Language != "en" {
-		for _, t := range info.AltTitles {
-			if !sameTitle(t, rq.Title) {
-				qs = append(qs, t)
+	// the title it has in the languages wanted (one wanted language, else the box's), at most two more searches
+	if info.Language != "" {
+		langs = []string{info.Language}
+	}
+	for _, l := range langs {
+		if l == "en" || len(qs) >= 4 {
+			continue
+		}
+		for _, t := range info.TitlesByLanguage[l] {
+			if !sameTitle(t, rq.Title) && !containsFoldS(qs, t) {
+				qs = append(qs, strings.TrimSpace(strings.SplitN(t, ":", 2)[0]))
 				break
 			}
 		}
@@ -107,7 +114,7 @@ func (s *Server) bookReleases(ctx context.Context, rq *store.Request) ([]arr.Sco
 	seen := map[string]bool{}
 	var all []arr.IndexerResult
 	var lastErr error
-	for _, q := range bookQueries(rq) {
+	for _, q := range bookQueries(rq, want.Languages) {
 		cctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 		list, err := p.IndexerSearch(cctx, q, cats)
 		cancel()
@@ -941,4 +948,13 @@ func (s *Server) trackBook(ctx context.Context, rq *store.Request) {
 		*rq = *fresh
 	}
 	s.apply(ctx, rq, v, nil)
+}
+
+func containsFoldS(xs []string, s string) bool {
+	for _, x := range xs {
+		if arr.BookFold(x) == arr.BookFold(s) {
+			return true
+		}
+	}
+	return false
 }
