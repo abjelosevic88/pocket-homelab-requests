@@ -237,3 +237,12 @@ func TestFileAudiobookLinksDiscs(t *testing.T) {
 		t.Fatal("epub filed as audiobook")
 	}
 }
+
+func TestBookPageTakesAnEscapedKey(t *testing.T) {
+	tb, _ := newBookBox(t)
+	for _, path := range []string{"/api/v1/titles/book/ol:OL1W", "/api/v1/titles/book/ol%3AOL1W"} {
+		if code, out := tb.do(tb.aliceTok, "GET", path, nil); code != http.StatusOK || out["title"] != "Project Hail Mary" {
+			t.Fatalf("%s: %d %v", path, code, out)
+		}
+	}
+}

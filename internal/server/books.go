@@ -498,6 +498,9 @@ func refURL(r *haveRef) string {
 func (s *Server) handleBookTitle(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	key := chi.URLParam(r, "key")
+	if k, err := url.PathUnescape(key); err == nil {
+		key = k // the page sends ol%3AOL…W (a colon in a path segment)
+	}
 	b, err := s.lookupBook(ctx, key)
 	if err != nil {
 		status := http.StatusBadGateway
