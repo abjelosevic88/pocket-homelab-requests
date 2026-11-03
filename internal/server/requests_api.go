@@ -353,7 +353,15 @@ func (s *Server) createRequest(ctx context.Context, u *store.User, in requestInp
 		return nil, err
 	}
 	// asked already?
-	if prev, err := s.store.FindRequest(ctx, u.ID, store.TitleKey{Kind: rq.Kind, TMDBID: rq.TMDBID, TVDBID: rq.TVDBID, MBID: rq.MBID, BookKey: rq.BookKey}); err == nil {
+	if rq.IsBook() {
+		// one live request per book, kind and language (an English and a Serbian ebook are two)
+		want := readBookInfo(rq).Language
+		for _, prev := range s.bookRequestsFor(ctx, u.ID, rq.Kind, rq.BookKey) {
+			if readBookInfo(&prev).Language == want {
+				return nil, &httpErr{status: http.StatusConflict, msg: "You already asked for " + rq.Title + ".", extra: map[string]any{"request_id": prev.ID}}
+			}
+		}
+	} else if prev, err := s.store.FindRequest(ctx, u.ID, store.TitleKey{Kind: rq.Kind, TMDBID: rq.TMDBID, TVDBID: rq.TVDBID, MBID: rq.MBID, BookKey: rq.BookKey}); err == nil {
 		if rq.Kind != "series" || coversSeasons(prev.Seasons, rq.Seasons) {
 			return nil, &httpErr{status: http.StatusConflict, msg: "You already asked for " + rq.Title + ".", extra: map[string]any{"request_id": prev.ID}}
 		}

@@ -93,6 +93,13 @@ type bookTitle struct {
 	Requests   map[string]*titleRequest `json:"requests"` // ebook / audiobook → the person's request
 	// Why Requests can't tell whether the person has it (the Core link is off…).
 	HaveUnknown map[string]string `json:"have_unknown,omitempty"`
+	// Every live request for it (an ebook may be asked for in two languages).
+	Asked []bookAsk `json:"asked"`
+}
+
+type bookAsk struct {
+	titleRequest
+	Kind string `json:"kind"`
 }
 
 type haveRef struct {
@@ -108,7 +115,7 @@ func bookTitleFrom(b arr.Book) Title {
 		t.Subtitle = b.Publisher
 	}
 	t.Book = &bookTitle{Authors: b.Authors, ISBN: b.ISBN, Languages: b.Languages, Series: b.Series, Pages: b.Pages, Publisher: b.Publisher,
-		Narrators: b.Narrators, RuntimeMin: b.RuntimeMin, ASIN: b.ASIN, Have: map[string]*haveRef{}, Requests: map[string]*titleRequest{}}
+		Narrators: b.Narrators, RuntimeMin: b.RuntimeMin, ASIN: b.ASIN, Have: map[string]*haveRef{}, Requests: map[string]*titleRequest{}, Asked: []bookAsk{}}
 	if t.Book.Languages == nil {
 		t.Book.Languages = []string{}
 	}
@@ -339,8 +346,9 @@ func forgetHave(uid int64) {
 
 // bookHave asks Pocket Library (ebook) or Pocket Audiobooks (audiobook)
 // whether the person has the book. reason is set when it can't be asked.
-func (s *Server) bookHave(ctx context.Context, uid int64, kind, title string, authors []string) (ref *haveRef, reason string) {
-	ck := strconv.FormatInt(uid, 10) + "|" + kind + "|" + arr.BookFold(title) + "|" + arr.BookFold(strings.Join(firstN(authors, 1), ""))
+// lang ("" = any) limits ebooks to that language when Library knows the book's.
+func (s *Server) bookHave(ctx context.Context, uid int64, kind, title string, authors []string, lang string) (ref *haveRef, reason string) {
+	ck := strconv.FormatInt(uid, 10) + "|" + kind + "|" + lang + "|" + arr.BookFold(title) + "|" + arr.BookFold(strings.Join(firstN(authors, 1), ""))
 	haveMu.Lock()
 	if c, ok := haveCache[ck]; ok && time.Since(c.at) < 2*time.Minute {
 		haveMu.Unlock()
@@ -368,10 +376,11 @@ func (s *Server) bookHave(ctx context.Context, uid int64, kind, title string, au
 		}
 		var out struct {
 			Items []struct {
-				ID      int64  `json:"id"`
-				Title   string `json:"title"`
-				Kind    string `json:"kind"`
-				Authors []struct {
+				ID       int64  `json:"id"`
+				Title    string `json:"title"`
+				Kind     string `json:"kind"`
+				Language string `json:"language"`
+				Authors  []struct {
 					Name string `json:"name"`
 				} `json:"authors"`
 			} `json:"items"`
@@ -386,6 +395,9 @@ func (s *Server) bookHave(ctx context.Context, uid int64, kind, title string, au
 			}
 			if b.Kind != "" && b.Kind != "book" {
 				continue
+			}
+			if l := langCode(b.Language); lang != "" && l != "" && l != lang {
+				continue // the book in another language
 			}
 			if sameTitle(b.Title, title) && (author == "" || len(names) == 0 || arr.SameAuthor(author, names)) {
 				_ = want
@@ -441,10 +453,13 @@ func (s *Server) annotateBooks(ctx context.Context, uid int64, ts []Title, haveC
 		}
 		for _, kind := range []string{"ebook", "audiobook"} {
 			if r, err := s.store.FindRequest(ctx, uid, store.TitleKey{Kind: kind, BookKey: t.BookKey}); err == nil {
-				t.Book.Requests[kind] = &titleRequest{ID: r.ID, Status: r.Status, State: r.State, Progress: r.Progress}
+				t.Book.Requests[kind] = &titleRequest{ID: r.ID, Status: r.Status, State: r.State, Progress: r.Progress, Language: readBookInfo(r).Language}
 				if t.Request == nil {
 					t.Request = t.Book.Requests[kind]
 				}
+			}
+			for _, r := range s.bookRequestsFor(ctx, uid, kind, t.BookKey) {
+				t.Book.Asked = append(t.Book.Asked, bookAsk{titleRequest{ID: r.ID, Status: r.Status, State: r.State, Progress: r.Progress, Language: readBookInfo(&r).Language}, kind})
 			}
 			if s.store.RequestedByOthers(ctx, uid, store.TitleKey{Kind: kind, BookKey: t.BookKey}) {
 				t.RequestedByOthers = true
@@ -465,7 +480,7 @@ func (s *Server) annotateBooks(ctx context.Context, uid int64, ts []Title, haveC
 				inner.Add(1)
 				go func(kind string) {
 					defer inner.Done()
-					ref, why := s.bookHave(ctx, uid, kind, t.Title, t.Book.Authors)
+					ref, why := s.bookHave(ctx, uid, kind, t.Title, t.Book.Authors, "")
 					mu.Lock()
 					defer mu.Unlock()
 					if ref != nil {
@@ -621,7 +636,8 @@ func (s *Server) handleBookLookup(w http.ResponseWriter, r *http.Request) {
 	}
 	ts := []Title{bookTitleFrom(*b)}
 	s.annotateBooks(ctx, actorID(ctx), ts, 1)
-	writeJSON(w, http.StatusOK, map[string]any{"title": ts[0]})
+	box, _ := s.store.GetSettings(ctx, 0)
+	writeJSON(w, http.StatusOK, map[string]any{"title": ts[0], "languages_wanted": strings.Split(box.BookLanguages, ","), "can_get": s.bookServices(ctx)})
 }
 
 // findBook turns what another app knows (a key, an ISBN, a title and an
@@ -686,7 +702,7 @@ func (s *Server) describeBook(ctx context.Context, rq *store.Request, uid int64)
 		}
 	}
 	writeBookInfo(rq, info)
-	if ref, _ := s.bookHave(ctx, uid, rq.Kind, rq.Title, info.Authors); ref != nil {
+	if ref, _ := s.bookHave(ctx, uid, rq.Kind, rq.Title, info.Authors, info.Language); ref != nil {
 		rq.State, rq.LibraryRef, rq.Have, rq.Total = "available", ref.ID, 1, 1
 	}
 	return nil
@@ -698,7 +714,7 @@ func (s *Server) bookOpenURL(ctx context.Context, rq store.Request) string {
 		return ""
 	}
 	info := readBookInfo(&rq)
-	if ref, _ := s.bookHave(ctx, rq.UserID, rq.Kind, rq.Title, info.Authors); ref != nil {
+	if ref, _ := s.bookHave(ctx, rq.UserID, rq.Kind, rq.Title, info.Authors, info.Language); ref != nil {
 		return ref.URL
 	}
 	app := "library"
@@ -706,4 +722,72 @@ func (s *Server) bookOpenURL(ctx context.Context, rq store.Request) string {
 		app = "audiobooks"
 	}
 	return s.publicSibling(ctx, app)
+}
+
+// bookRequestsFor lists a person's live requests (waiting or approved) for a book and kind.
+func (s *Server) bookRequestsFor(ctx context.Context, uid int64, kind, key string) []store.Request {
+	list, _, _ := s.store.ListRequests(ctx, uid, store.RequestFilter{Kind: kind, Statuses: []string{"pending", "approved"}, Limit: 500})
+	out := []store.Request{}
+	for _, r := range list {
+		if r.BookKey == key {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// langCode reads a book's language as two letters (eng → en, srp → sr, "Serbian" → sr).
+func langCode(l string) string {
+	l = strings.ToLower(strings.TrimSpace(l))
+	if l == "" {
+		return ""
+	}
+	if c, ok := langNames[l]; ok {
+		return c
+	}
+	if len(l) >= 2 && (len(l) == 2 || l[2] == '-' || l[2] == '_') {
+		return l[:2]
+	}
+	return ""
+}
+
+var langNames = map[string]string{"eng": "en", "english": "en", "srp": "sr", "scc": "sr", "serbian": "sr", "srpski": "sr", "hrv": "hr", "scr": "hr",
+	"croatian": "hr", "hrvatski": "hr", "bos": "bs", "bosnian": "bs", "ger": "de", "deu": "de", "german": "de", "fre": "fr", "fra": "fr", "french": "fr",
+	"spa": "es", "spanish": "es", "ita": "it", "italian": "it", "rus": "ru", "russian": "ru", "slv": "sl", "mkd": "mk", "mac": "mk"}
+
+// handleBookAuthor lists an author's best-known books with what the person
+// has and asked for ("More by this author" in Pocket Library and Audiobooks).
+func (s *Server) handleBookAuthor(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	if name == "" {
+		writeErr(w, http.StatusBadRequest, "say whose books (name)")
+		return
+	}
+	list, err := bookCached(s, ctx, "author-name:"+arr.BookFold(name), func() (*[]arr.Book, error) {
+		l, err := s.bookMeta().OpenLibraryAuthorBooks(ctx, name, 40)
+		return &l, err
+	})
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	out := []Title{}
+	for _, b := range *list {
+		if !arr.SameAuthor(name, b.Authors) || b.Cover == "" || len(out) >= 24 {
+			continue
+		}
+		dup := false
+		for _, t := range out {
+			if sameTitle(t.Title, b.Title) {
+				dup = true
+			}
+		}
+		if !dup {
+			out = append(out, bookTitleFrom(b))
+		}
+	}
+	s.annotateBooks(ctx, actorID(ctx), out, 24)
+	box, _ := s.store.GetSettings(ctx, 0)
+	writeJSON(w, http.StatusOK, map[string]any{"author": name, "items": out, "languages_wanted": strings.Split(box.BookLanguages, ","), "can_get": s.bookServices(ctx)})
 }

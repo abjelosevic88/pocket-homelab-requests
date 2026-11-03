@@ -347,6 +347,24 @@ func (m *BookMeta) OpenLibraryAuthorWorks(ctx context.Context, authorKey string,
 	return books, nil
 }
 
+// OpenLibraryAuthorBooks lists the best-known works of an author by name.
+func (m *BookMeta) OpenLibraryAuthorBooks(ctx context.Context, name string, limit int) ([]Book, error) {
+	u := "https://openlibrary.org/search.json?" + url.Values{"author": {name}, "fields": {olFields}, "sort": {"editions"}, "limit": {strconv.Itoa(limit)}}.Encode()
+	var out struct {
+		Docs []olDoc `json:"docs"`
+	}
+	if err := m.get(ctx, u, &out); err != nil {
+		return nil, fmt.Errorf("Open Library: %w", err)
+	}
+	books := []Book{}
+	for _, d := range out.Docs {
+		if strings.HasPrefix(d.Key, "/works/") {
+			books = append(books, d.book())
+		}
+	}
+	return books, nil
+}
+
 // ---- Google Books ----
 
 type gbVolume struct {

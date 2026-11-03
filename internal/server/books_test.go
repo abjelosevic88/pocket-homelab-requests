@@ -261,3 +261,27 @@ func TestBookQueriesUseTheLanguagesTitle(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestBookInTwoLanguages(t *testing.T) {
+	tb, _ := newBookBox(t)
+	box, _ := tb.st.GetSettings(context.Background(), 0)
+	box.BookAutoPick = false
+	_ = tb.st.SaveBoxSettings(context.Background(), box)
+	if code, out := tb.do(tb.aliceTok, "POST", "/api/v1/requests", map[string]any{"kind": "ebook", "book_key": "ol:OL1W", "language": "en"}); code != http.StatusCreated {
+		t.Fatalf("en: %d %v", code, out)
+	}
+	if code, out := tb.do(tb.aliceTok, "POST", "/api/v1/requests", map[string]any{"kind": "ebook", "book_key": "ol:OL1W", "language": "sr"}); code != http.StatusCreated {
+		t.Fatalf("sr: %d %v", code, out)
+	}
+	if code, _ := tb.do(tb.aliceTok, "POST", "/api/v1/requests", map[string]any{"kind": "ebook", "book_key": "ol:OL1W", "language": "sr"}); code != http.StatusConflict {
+		t.Fatalf("sr again: %d", code)
+	}
+	code, out := tb.do(tb.aliceTok, "GET", "/api/v1/books/lookup?book_key=ol:OL1W", nil)
+	asked := out["title"].(map[string]any)["book"].(map[string]any)["asked"].([]any)
+	if code != 200 || len(asked) != 2 || out["languages_wanted"] == nil {
+		t.Fatalf("lookup %d %v", code, out)
+	}
+	if langCode("srp") != "sr" || langCode("en-US") != "en" || langCode("Serbian") != "sr" || langCode("klingon") != "" {
+		t.Fatal("langCode")
+	}
+}

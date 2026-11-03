@@ -61,6 +61,7 @@ type titleRequest struct {
 	Status   string  `json:"status"`
 	State    string  `json:"state"`
 	Progress float64 `json:"progress"`
+	Language string  `json:"language,omitempty"` // books: the language asked for ("" = any)
 }
 
 func (t Title) key() store.TitleKey {

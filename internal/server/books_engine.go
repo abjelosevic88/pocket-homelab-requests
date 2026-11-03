@@ -910,7 +910,7 @@ func safeName(s string) string {
 // trusted.
 func (s *Server) confirmFiled(ctx context.Context, rq *store.Request, d *store.BookDownload, info bookInfo) view {
 	where := map[string]string{"ebook": "Pocket Library", "audiobook": "Pocket Audiobooks"}[rq.Kind]
-	ref, why := s.bookHave(ctx, rq.UserID, rq.Kind, rq.Title, info.Authors)
+	ref, why := s.bookHave(ctx, rq.UserID, rq.Kind, rq.Title, info.Authors, info.Language)
 	if ref == nil {
 		forgetHave(rq.UserID)
 	}
