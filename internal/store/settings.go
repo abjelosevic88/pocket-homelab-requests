@@ -16,13 +16,14 @@ var boxKeys = map[string]bool{"title": true, "setup_complete": true,
 	"movie_profile_id": true, "movie_root": true, "movie_availability": true,
 	"series_profile_id": true, "series_root": true, "series_season_folders": true, "series_type": true,
 	"album_profile_id": true, "album_metadata_profile_id": true, "music_root": true,
+	"book_languages": true, "ebook_formats": true, "ebook_allow_pdf": true, "book_auto_pick": true, "book_quota_week": true,
 	"member_policy": true, "movie_quota_week": true, "series_quota_week": true, "album_quota_week": true, "members_can_search": true,
 	"seerr_key_hash": true, "seerr_key_hint": true,
 	"care_search_missed": true, "care_retry_failed": true, "care_unblock_imports": true, "care_jellyfin_scan": true, "care_drop_fakes": true, "care_lidarr": true,
 }
 
 // ServiceNames are the services the box reaches (each has <name>_mode, _url, _key, _public_url).
-var ServiceNames = []string{"radarr", "sonarr", "lidarr", "prowlarr", "jellyfin", "jellyseerr", "tmdb", "slskd", "sabnzbd", "navidrome"}
+var ServiceNames = []string{"radarr", "sonarr", "lidarr", "prowlarr", "jellyfin", "jellyseerr", "tmdb", "slskd", "sabnzbd", "navidrome", "qbittorrent"}
 
 // IsBoxKey reports whether a settings key is box-wide.
 func IsBoxKey(k string) bool {
@@ -42,6 +43,7 @@ func (s *Store) defaults() Settings {
 	return Settings{Title: DefaultTitle, DateFormat: "auto", TimeFormat: "auto", WeekStart: 1,
 		MovieAvailability: "released", SeriesSeasonFolders: true, SeriesType: "standard",
 		MemberPolicy: "approve", MembersCanSearch: true,
+		BookLanguages: "en,sr,hr,bs", EbookFormats: "epub,azw3,mobi,fb2", BookAutoPick: true,
 		// drop_fakes starts on: no old timer does that job
 		CareSearchMissed: "watch", CareRetryFailed: "watch", CareUnblockImports: "watch", CareJellyfinScan: "watch", CareDropFakes: "fix", CareLidarr: true,
 		NotifyFormat: "apprise", NotifyApproved: true, NotifyAvailable: true, NotifyFailed: true,

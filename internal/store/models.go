@@ -34,7 +34,7 @@ type APIToken struct {
 type Request struct {
 	ID            int64   `json:"id"`
 	UserID        int64   `json:"-"`
-	Kind          string  `json:"kind"` // movie | series | album
+	Kind          string  `json:"kind"` // movie | series | album | ebook | audiobook
 	TMDBID        int64   `json:"tmdb_id"`
 	TVDBID        int64   `json:"tvdb_id"`
 	IMDBID        string  `json:"imdb_id"`
@@ -71,7 +71,15 @@ type Request struct {
 	SearchedAt    string  `json:"searched_at"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
+	// Books: where the book came from, what is known about it (JSON) and
+	// where it arrived.
+	BookKey    string `json:"book_key"`
+	BookMeta   string `json:"-"`
+	LibraryRef string `json:"library_ref"`
 }
+
+// IsBook reports whether the request is an ebook or an audiobook.
+func (r Request) IsBook() bool { return r.Kind == "ebook" || r.Kind == "audiobook" }
 
 // Open reports whether the request still has work ahead of it.
 func (r Request) Open() bool {
@@ -179,6 +187,12 @@ type Settings struct {
 	NavidromeKey     string `json:"navidrome_key"` // the password
 	NavidromeUser    string `json:"navidrome_user"`
 	NavidromePublic  string `json:"navidrome_public_url"`
+	// qBittorrent takes the books' torrents (key = the password).
+	QbittorrentMode   string `json:"qbittorrent_mode"`
+	QbittorrentURL    string `json:"qbittorrent_url"`
+	QbittorrentKey    string `json:"qbittorrent_key"`
+	QbittorrentUser   string `json:"qbittorrent_user"`
+	QbittorrentPublic string `json:"qbittorrent_public_url"`
 
 	// The Jellyseerr-compatible API's key (sha256, and its first characters to recognise it).
 	SeerrKeyHash string `json:"seerr_key_hash"`
@@ -195,12 +209,20 @@ type Settings struct {
 	AlbumProfileID      int64  `json:"album_profile_id"`
 	AlbumMetadataID     int64  `json:"album_metadata_profile_id"`
 	MusicRoot           string `json:"music_root"`
+	// Books: the languages a book may be in (best first), the ebook formats
+	// (best first), whether a PDF will do, and whether Requests picks a
+	// release on its own (else an admin picks from the list).
+	BookLanguages string `json:"book_languages"`
+	EbookFormats  string `json:"ebook_formats"`
+	EbookAllowPDF bool   `json:"ebook_allow_pdf"`
+	BookAutoPick  bool   `json:"book_auto_pick"`
 
 	// Approvals and limits for members (admins are always approved).
 	MemberPolicy     string `json:"member_policy"` // auto | approve
 	MovieQuotaWeek   int    `json:"movie_quota_week"`
 	SeriesQuotaWeek  int    `json:"series_quota_week"`
 	AlbumQuotaWeek   int    `json:"album_quota_week"`
+	BookQuotaWeek    int    `json:"book_quota_week"`
 	MembersCanSearch bool   `json:"members_can_search"` // members may press "Search again"
 
 	// Library care: off | watch (only report) | fix.

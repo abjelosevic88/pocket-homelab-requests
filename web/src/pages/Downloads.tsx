@@ -8,12 +8,13 @@ import { Icon } from '../components/icons'
 import { Bar, Poster, usePoll } from '../components/media'
 import { Empty, Loading, PageHeader } from '../components/ui'
 
-const APP: Record<string, string> = { radarr: 'Radarr', sonarr: 'Sonarr', lidarr: 'Lidarr', slskd: 'Soulseek' }
+const APP: Record<string, string> = { radarr: 'Radarr', sonarr: 'Sonarr', lidarr: 'Lidarr', slskd: 'Soulseek', books: 'Books (Pocket Requests)' }
 
 function stateText(d: QueueRow): { text: string; tone: string } {
   const st = d.state || d.status
   if (d.stuck || st === 'importBlocked' || st === 'importFailed') return { text: 'Needs a look', tone: 'warn' }
   if (st === 'failed' || st === 'failedPending' || d.status === 'failed') return { text: 'Failed', tone: 'bad' }
+  if (d.app === 'books' && (st === 'importPending' || st === 'importing')) return { text: 'Filing it', tone: 'accent' }
   if (st === 'importPending' || st === 'importing') return { text: 'Moving into the library', tone: 'accent' }
   if (d.status === 'paused') return { text: 'Paused', tone: 'muted' }
   if (d.status === 'queued' || d.status === 'delay') return { text: 'Queued', tone: 'muted' }
@@ -70,7 +71,7 @@ export default function Downloads() {
   const errors = Object.entries(data?.errors || {}).filter(([, v]) => v)
   return (
     <div className="stack loose">
-      <PageHeader title="Downloads" sub="Everything Radarr, Sonarr and Lidarr are fetching right now. Refreshes every few seconds." />
+      <PageHeader title="Downloads" sub="Everything Radarr, Sonarr and Lidarr are fetching right now, and the books Pocket Requests fetches itself. Refreshes every few seconds." />
       <SabBar />
       {err && <div className="callout danger"><Icon name="alert" size={15} /><span>{err}</span></div>}
       {errors.length > 0 && <p className="muted small quiet-note"><Icon name="info" size={13} />{errors.map(([k, v]) => `${APP[k] || k}: ${v}`).join(' · ')}</p>}

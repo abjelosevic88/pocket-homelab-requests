@@ -38,15 +38,23 @@ export const stateTone = (s: string): Tone => TONE[s] || 'neutral'
 export const BUSY: string[] = ['sent', 'searching', 'downloading', 'importing']
 export const isBusy = (r: { status: ReqStatus; state: ReqState }) => r.status === 'approved' && BUSY.includes(r.state)
 
-export const KIND_ICON: Record<TitleKind, string> = { movie: 'film', series: 'tv', album: 'music', artist: 'user' }
-export const KIND_LABEL: Record<TitleKind, string> = { movie: 'Film', series: 'Show', album: 'Album', artist: 'Artist' }
-export const KIND_PLURAL: Record<Kind, string> = { movie: 'Films', series: 'Shows', album: 'Music' }
+export const KIND_ICON: Record<TitleKind, string> = { movie: 'film', series: 'tv', album: 'music', artist: 'user', book: 'book', ebook: 'book', audiobook: 'headphones' }
+export const KIND_LABEL: Record<TitleKind, string> = { movie: 'Film', series: 'Show', album: 'Album', artist: 'Artist', book: 'Book', ebook: 'Ebook', audiobook: 'Audiobook' }
+export const KIND_PLURAL: Record<Kind, string> = { movie: 'Films', series: 'Shows', album: 'Music', ebook: 'Ebooks', audiobook: 'Audiobooks' }
 
-/** Watch or Listen. */
-export const openVerb = (k: TitleKind) => k === 'album' ? 'Listen' : 'Watch'
+export const isBookKind = (k: string) => k === 'ebook' || k === 'audiobook' || k === 'book'
+
+/** Watch, Listen or Read. */
+export const openVerb = (k: TitleKind) => k === 'album' || k === 'audiobook' ? 'Listen' : k === 'ebook' || k === 'book' ? 'Read' : 'Watch'
+/** The icon on an open button. */
+export const openIcon = (k: TitleKind) => k === 'album' || k === 'audiobook' ? 'headphones' : k === 'ebook' || k === 'book' ? 'book' : 'play'
+
+/** Where an arrived book is opened. */
+export const bookApp = (k: string) => k === 'audiobook' ? 'Pocket Audiobooks' : 'Pocket Library'
 
 /** Where a title page lives. */
-export function titleURL(t: Pick<Title, 'kind' | 'tmdb_id' | 'tvdb_id' | 'mbid'>): string {
+export function titleURL(t: Pick<Title, 'kind' | 'tmdb_id' | 'tvdb_id' | 'mbid'> & { book_key?: string }): string {
+  if (isBookKind(t.kind)) return t.book_key ? `/title/book/${encodeURIComponent(t.book_key)}` : '/requests'
   if (t.kind === 'movie') return `/title/movie/${t.tmdb_id}`
   if (t.kind === 'series') return t.tvdb_id ? `/title/series/${t.tvdb_id}` : `/title/series/tmdb-${t.tmdb_id}`
   if (t.kind === 'artist') return `/title/artist/${t.mbid}`
@@ -56,6 +64,15 @@ export const requestTitleURL = (r: Request) => titleURL(r)
 
 /** A small badge for a poster card: what is true about this title for you. */
 export function titleBadge(t: Title): { label: string; tone: Tone } | null {
+  if (t.kind === 'book' && t.book) {
+    const e = !!t.book.have.ebook, a = !!t.book.have.audiobook
+    if (e && a) return { label: 'Both here', tone: 'ok' }
+    if (e) return { label: 'Ebook here', tone: 'ok' }
+    if (a) return { label: 'Audiobook here', tone: 'ok' }
+    if (t.request) return { label: t.request.status === 'pending' ? 'Waiting' : 'Asked for', tone: 'accent' }
+    if (t.requested_by_others) return { label: 'Asked for', tone: 'neutral' }
+    return null
+  }
   if (t.kind === 'artist') return t.in_library ? { label: 'In library', tone: 'ok' } : null
   if (t.available) return { label: 'Here', tone: 'ok' }
   if (t.request) return { label: t.request.status === 'pending' ? 'Waiting' : 'Requested', tone: 'accent' }
@@ -75,7 +92,7 @@ export const PROBLEM_KINDS: { value: string; label: string }[] = [
   { value: 'video', label: 'Picture problem' },
   { value: 'audio', label: 'Sound problem' },
   { value: 'subtitles', label: 'Subtitles missing or wrong' },
-  { value: 'missing', label: 'Something is missing (episodes, tracks)' },
+  { value: 'missing', label: 'Something is missing (episodes, tracks, chapters)' },
   { value: 'other', label: 'Something else' },
 ]
 export const problemLabel = (k: string) => PROBLEM_KINDS.find(p => p.value === k)?.label || k

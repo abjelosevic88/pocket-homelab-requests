@@ -9,14 +9,16 @@ import (
 
 const requestCols = `id, user_id, kind, tmdb_id, tvdb_id, imdb_id, mbid, artist_mbid, title, subtitle, year, poster, backdrop, overview,
   seasons, note, status, decided_by, decided_at, decline_reason, state, state_detail, progress, eta, have, total, release_date,
-  arr_id, arr_parent_id, jellyfin_id, profile_id, root_folder, source, external_ref, available_at, checked_at, searched_at, created_at, updated_at`
+  arr_id, arr_parent_id, jellyfin_id, profile_id, root_folder, source, external_ref, available_at, checked_at, searched_at, created_at, updated_at,
+  book_key, book_meta, library_ref`
 
 func scanRequest(row interface{ Scan(...any) error }) (*Request, error) {
 	var r Request
 	err := row.Scan(&r.ID, &r.UserID, &r.Kind, &r.TMDBID, &r.TVDBID, &r.IMDBID, &r.MBID, &r.ArtistMBID, &r.Title, &r.Subtitle, &r.Year,
 		&r.Poster, &r.Backdrop, &r.Overview, &r.Seasons, &r.Note, &r.Status, &r.DecidedBy, &r.DecidedAt, &r.DeclineReason,
 		&r.State, &r.StateDetail, &r.Progress, &r.ETA, &r.Have, &r.Total, &r.ReleaseDate, &r.ArrID, &r.ArrParentID, &r.JellyfinID,
-		&r.ProfileID, &r.RootFolder, &r.Source, &r.ExternalRef, &r.AvailableAt, &r.CheckedAt, &r.SearchedAt, &r.CreatedAt, &r.UpdatedAt)
+		&r.ProfileID, &r.RootFolder, &r.Source, &r.ExternalRef, &r.AvailableAt, &r.CheckedAt, &r.SearchedAt, &r.CreatedAt, &r.UpdatedAt,
+		&r.BookKey, &r.BookMeta, &r.LibraryRef)
 	if err != nil {
 		return nil, notFound(err)
 	}
@@ -56,11 +58,13 @@ func (s *Store) CreateRequest(ctx context.Context, uid int64, r *Request) error 
 	}
 	res, err := s.DB.ExecContext(ctx, `INSERT INTO requests (user_id, kind, tmdb_id, tvdb_id, imdb_id, mbid, artist_mbid, title, subtitle, year,
 	  poster, backdrop, overview, seasons, note, status, decided_by, decided_at, decline_reason, state, state_detail, progress, eta, have, total,
-	  release_date, arr_id, arr_parent_id, jellyfin_id, profile_id, root_folder, source, external_ref, available_at, checked_at, created_at, updated_at)
-	  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	  release_date, arr_id, arr_parent_id, jellyfin_id, profile_id, root_folder, source, external_ref, available_at, checked_at, created_at, updated_at,
+	  book_key, book_meta, library_ref)
+	  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		uid, r.Kind, r.TMDBID, r.TVDBID, r.IMDBID, r.MBID, r.ArtistMBID, r.Title, r.Subtitle, r.Year, r.Poster, r.Backdrop, r.Overview,
 		r.Seasons, r.Note, r.Status, r.DecidedBy, r.DecidedAt, r.DeclineReason, r.State, r.StateDetail, r.Progress, r.ETA, r.Have, r.Total,
-		r.ReleaseDate, r.ArrID, r.ArrParentID, r.JellyfinID, r.ProfileID, r.RootFolder, r.Source, r.ExternalRef, r.AvailableAt, r.CheckedAt, r.CreatedAt, Now())
+		r.ReleaseDate, r.ArrID, r.ArrParentID, r.JellyfinID, r.ProfileID, r.RootFolder, r.Source, r.ExternalRef, r.AvailableAt, r.CheckedAt, r.CreatedAt, Now(),
+		r.BookKey, r.BookMeta, r.LibraryRef)
 	if err != nil {
 		return conflict(err)
 	}
@@ -122,7 +126,11 @@ func (s *Store) listRequests(ctx context.Context, where []string, args []any, f 
 		where = append(where, "state = ?")
 		args = append(args, f.State)
 	}
-	if f.Kind != "" {
+	switch f.Kind {
+	case "":
+	case "book": // ebooks and audiobooks
+		where = append(where, "kind IN ('ebook','audiobook')")
+	default:
 		where = append(where, "kind = ?")
 		args = append(args, f.Kind)
 	}
@@ -199,10 +207,10 @@ func (s *Store) SaveRequest(ctx context.Context, r *Request) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE requests SET tmdb_id=?, tvdb_id=?, imdb_id=?, mbid=?, artist_mbid=?, title=?, subtitle=?, year=?,
 	  poster=?, backdrop=?, overview=?, seasons=?, note=?, status=?, decided_by=?, decided_at=?, decline_reason=?, state=?, state_detail=?,
 	  progress=?, eta=?, have=?, total=?, release_date=?, arr_id=?, arr_parent_id=?, jellyfin_id=?, profile_id=?, root_folder=?,
-	  available_at=?, checked_at=?, searched_at=?, updated_at=? WHERE id = ? AND user_id = ?`,
+	  available_at=?, checked_at=?, searched_at=?, updated_at=?, book_key=?, book_meta=?, library_ref=? WHERE id = ? AND user_id = ?`,
 		r.TMDBID, r.TVDBID, r.IMDBID, r.MBID, r.ArtistMBID, r.Title, r.Subtitle, r.Year, r.Poster, r.Backdrop, r.Overview, r.Seasons, r.Note,
 		r.Status, r.DecidedBy, r.DecidedAt, r.DeclineReason, r.State, r.StateDetail, r.Progress, r.ETA, r.Have, r.Total, r.ReleaseDate,
-		r.ArrID, r.ArrParentID, r.JellyfinID, r.ProfileID, r.RootFolder, r.AvailableAt, r.CheckedAt, r.SearchedAt, r.UpdatedAt, r.ID, r.UserID)
+		r.ArrID, r.ArrParentID, r.JellyfinID, r.ProfileID, r.RootFolder, r.AvailableAt, r.CheckedAt, r.SearchedAt, r.UpdatedAt, r.BookKey, r.BookMeta, r.LibraryRef, r.ID, r.UserID)
 	return err
 }
 
@@ -258,14 +266,17 @@ func (s *Store) CountPending(ctx context.Context) int {
 
 // TitleKey identifies a title across services.
 type TitleKey struct {
-	Kind   string
-	TMDBID int64
-	TVDBID int64
-	MBID   string
+	Kind    string
+	TMDBID  int64
+	TVDBID  int64
+	MBID    string
+	BookKey string // ebooks and audiobooks
 }
 
 func (k TitleKey) where() (string, []any) {
 	switch {
+	case (k.Kind == "ebook" || k.Kind == "audiobook") && k.BookKey != "":
+		return "kind = ? AND book_key = ?", []any{k.Kind, k.BookKey}
 	case k.Kind == "album" && k.MBID != "":
 		return "kind = 'album' AND mbid = ?", []any{k.MBID}
 	case k.Kind == "series" && k.TVDBID > 0:

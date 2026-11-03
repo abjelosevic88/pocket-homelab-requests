@@ -72,6 +72,14 @@ type Config struct {
 	// (e.g. the old Jellyseerr address, pointed here at the switch-over).
 	SeerrHosts []string
 
+	// Books: where an arrived ebook is put for Pocket Library to file
+	// (its ingest folder), the audiobook folder new audiobooks go into, and
+	// how a download client's paths read here ("/media/=/home/me/media/"
+	// for a SABnzbd that sees the media folder as /media).
+	BooksIngestDir    string
+	BooksAudiobookDir string
+	BooksPathMap      [][2]string
+
 	// Outbound lookups identify as this.
 	UserAgent string
 
@@ -171,6 +179,10 @@ func Load() (*Config, error) {
 		MusicMeta:  strings.TrimRight(env("MUSIC_METADATA_URL", ""), "/"),
 		SeerrHosts: splitList(env("SEERR_HOSTS", "")),
 
+		BooksIngestDir:    strings.TrimRight(env("BOOKS_INGEST_DIR", ""), "/"),
+		BooksAudiobookDir: strings.TrimRight(env("BOOKS_AUDIOBOOK_DIR", ""), "/"),
+		BooksPathMap:      pathMap(env("BOOKS_PATH_MAP", "")),
+
 		UserAgent: env("USER_AGENT", "PocketRequests/1.0 (+https://github.com/abjelosevic88/pocket-homelab-requests)"),
 
 		CoreURL:             strings.TrimRight(env("CORE_URL", ""), "/"),
@@ -182,8 +194,8 @@ func Load() (*Config, error) {
 	if c.CoreAppURL == "" {
 		c.CoreAppURL = c.BaseURL
 	}
-	for _, n := range []string{"RADARR", "SONARR", "LIDARR", "PROWLARR", "JELLYFIN", "JELLYSEERR", "TMDB", "SLSKD", "SABNZBD"} {
-		sv := ServiceEnv{URL: strings.TrimRight(env(n+"_URL", ""), "/"), Key: env(n+"_API_KEY", ""), PublicURL: strings.TrimRight(env(n+"_PUBLIC_URL", ""), "/")}
+	for _, n := range []string{"RADARR", "SONARR", "LIDARR", "PROWLARR", "JELLYFIN", "JELLYSEERR", "TMDB", "SLSKD", "SABNZBD", "QBITTORRENT"} {
+		sv := ServiceEnv{URL: strings.TrimRight(env(n+"_URL", ""), "/"), Key: env(n+"_API_KEY", env(n+"_PASSWORD", "")), PublicURL: strings.TrimRight(env(n+"_PUBLIC_URL", ""), "/"), User: env(n+"_USER", "")}
 		if sv.URL != "" || sv.Key != "" {
 			c.Services[strings.ToLower(n)] = sv
 		}
@@ -211,6 +223,28 @@ func Load() (*Config, error) {
 // ServiceEnv is one service given in the environment.
 type ServiceEnv struct {
 	URL, Key, PublicURL string
+	User                string // qBittorrent's login name
+}
+
+// pathMap reads "from=to;from2=to2".
+func pathMap(v string) [][2]string {
+	var out [][2]string
+	for _, p := range strings.Split(v, ";") {
+		if from, to, ok := strings.Cut(strings.TrimSpace(p), "="); ok && from != "" && to != "" {
+			out = append(out, [2]string{from, to})
+		}
+	}
+	return out
+}
+
+// LocalPath turns a download client's path into the one this app sees.
+func (c *Config) LocalPath(p string) string {
+	for _, m := range c.BooksPathMap {
+		if strings.HasPrefix(p, m[0]) {
+			return m[1] + strings.TrimPrefix(p, m[0])
+		}
+	}
+	return p
 }
 
 func splitList(v string) []string {

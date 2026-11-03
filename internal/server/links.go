@@ -17,8 +17,8 @@ import (
 // in linkRoutes stays closed to it (403).
 
 var linkOffers = []core.Offer{
-	{Scope: "requests:read", Name: "See your requests", Description: "Read the films, shows and albums you asked for, how far along they are and what releases next — for your calendar, your day and Pocket Watch."},
-	{Scope: "requests:write", Name: "Ask for titles", Description: "Ask for a film, show or album on your behalf (a \"Request\" button in another app). It may only change or withdraw requests it made itself."},
+	{Scope: "requests:read", Name: "See your requests", Description: "Read the films, shows, albums and books you asked for, how far along they are and what releases next — for your calendar, your day and Pocket Watch."},
+	{Scope: "requests:write", Name: "Ask for titles", Description: "Ask for a film, show, album, ebook or audiobook on your behalf (a \"Request\" button in another app). It may only change or withdraw requests it made itself."},
 }
 
 type linkRoute struct {
@@ -32,7 +32,8 @@ var linkRoutes = []linkRoute{
 	{"GET", regexp.MustCompile(`^/api/v1/(home|requests|upcoming|overlay|activity|search|discover)$`), "requests:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/requests/\d+$`), "requests:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/discover/[a-z_]+$`), "requests:read"},
-	{"GET", regexp.MustCompile(`^/api/v1/titles/(movie/\d+|series/\d+|series/tmdb/\d+|album/[0-9a-f-]{36}|artist/[0-9a-f-]{36})$`), "requests:read"},
+	{"GET", regexp.MustCompile(`^/api/v1/titles/(movie/\d+|series/\d+|series/tmdb/\d+|album/[0-9a-f-]{36}|artist/[0-9a-f-]{36}|book/(ol|gb|asin):[A-Za-z0-9_-]+)$`), "requests:read"},
+	{"GET", regexp.MustCompile(`^/api/v1/books/lookup$`), "requests:read"},
 	{"GET", regexp.MustCompile(`^/api/v1/(day|summary)/\d{4}-\d{2}-\d{2}$`), "requests:read"},
 	{"POST", regexp.MustCompile(`^/api/v1/requests$`), "requests:write"},
 	{"PUT DELETE", regexp.MustCompile(`^/api/v1/requests/\d+$`), "requests:write"},

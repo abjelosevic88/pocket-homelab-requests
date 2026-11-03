@@ -22,6 +22,10 @@ Environment variables; every one has a default. Personal settings (formats, noti
 | `JELLYSEERR_URL`, `JELLYSEERR_API_KEY` | – | Only to bring Jellyseerr's requests over (Settings → Backup & data) |
 | `SABNZBD_URL`, `SABNZBD_API_KEY` | – | SABnzbd: usenet speed, time left and free space on Downloads, pause / resume |
 | `SLSKD_URL`, `SLSKD_API_KEY` | – | slskd: Soulseek downloads of requested albums (when Soularr fetches Lidarr's wanted albums), on the request and the Downloads page |
+| `QBITTORRENT_URL`, `QBITTORRENT_USER`, `QBITTORRENT_PASSWORD` | – | qBittorrent: books' torrents are handed to it (category `books`, tag `prq-<request id>`); leave user and password empty when it lets this address in without a login |
+| `BOOKS_INGEST_DIR` | – | Pocket Library's ingest folder (mounted): an arrived ebook is copied in as `<Author> - <Title>.<ext>` |
+| `BOOKS_AUDIOBOOK_DIR` | – | The audiobook folder Pocket Audiobooks scans: an arrived audiobook is hard-linked (else copied) into `<Author>/<Title>/` — mount it on the same filesystem as the downloads, as ONE mount, or links fall back to copies |
+| `BOOKS_PATH_MAP` | – | How the download clients' paths read in this container, `from=to;from2=to2` (e.g. `/media/=/home/me/media/` for a SABnzbd that sees the media folder as `/media`) |
 | `SOULARR_DIR` | – | Soularr's data folder (mount it, e.g. `/soularr`): albums on its `failed_imports.json` blacklist show as "needs a look", and admins can let Soulseek try again |
 | `SEERR_HOSTS` | – | Host names (comma list) whose `/api/v1` is the Jellyseerr-compatible API — point Jellyseerr's old address here and its apps keep working; other pages there redirect to `BASE_URL` |
 | `TMDB_API_KEY` | – | Trending / popular / best-rated shows on Discover (a v3 key or a v4 read token). Films and "new episodes this week" need no key |

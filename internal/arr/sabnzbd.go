@@ -1,10 +1,12 @@
 package arr
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -114,4 +116,128 @@ func (c *Sabnzbd) Pause(ctx context.Context) error {
 }
 func (c *Sabnzbd) Resume(ctx context.Context) error {
 	return c.call(ctx, url.Values{"mode": {"resume"}}, nil)
+}
+
+// AddNZB uploads an .nzb file into a category ("" = the default one) and
+// returns its id in the queue.
+func (c *Sabnzbd) AddNZB(ctx context.Context, data []byte, name, category string) (string, error) {
+	q := url.Values{"mode": {"addfile"}, "output": {"json"}, "apikey": {c.Key}, "nzbname": {name}}
+	if category != "" {
+		q.Set("cat", category)
+	}
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, err := mw.CreateFormFile("name", firstNonEmpty(name, "release")+".nzb")
+	if err != nil {
+		return "", err
+	}
+	_, _ = part.Write(data)
+	_ = mw.Close()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Base+"/api?"+q.Encode(), &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("SABnzbd did not answer: %w", err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var out struct {
+		Status bool     `json:"status"`
+		IDs    []string `json:"nzo_ids"`
+		Error  string   `json:"error"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return "", fmt.Errorf("SABnzbd: unexpected answer (%s)", resp.Status)
+	}
+	if !out.Status || len(out.IDs) == 0 {
+		return "", fmt.Errorf("SABnzbd did not take the NZB: %s", firstNonEmpty(out.Error, resp.Status))
+	}
+	return out.IDs[0], nil
+}
+
+// Categories lists SABnzbd's categories.
+func (c *Sabnzbd) Categories(ctx context.Context) ([]string, error) {
+	var out struct {
+		Categories []string `json:"categories"`
+	}
+	return out.Categories, c.call(ctx, url.Values{"mode": {"get_cats"}}, &out)
+}
+
+// SabJob is one download in SABnzbd's queue or history.
+type SabJob struct {
+	ID       string // nzo_id
+	Name     string
+	Status   string  // Downloading, Paused, Queued, Extracting, Completed, Failed, …
+	Done     bool    // in the history and completed
+	Failed   bool    // in the history and failed
+	Progress float64 // 0..1
+	SizeMB   float64
+	LeftMB   float64
+	TimeLeft string // h:mm:ss
+	Storage  string // where the finished files are (SABnzbd's own path)
+	Message  string // why it failed
+}
+
+// Job finds a download by id in the queue, then in the history.
+func (c *Sabnzbd) Job(ctx context.Context, id string) (*SabJob, error) {
+	var q struct {
+		Queue struct {
+			Slots []struct {
+				ID         string `json:"nzo_id"`
+				Filename   string `json:"filename"`
+				Status     string `json:"status"`
+				Percentage string `json:"percentage"`
+				MB         string `json:"mb"`
+				MBLeft     string `json:"mbleft"`
+				TimeLeft   string `json:"timeleft"`
+			} `json:"slots"`
+		} `json:"queue"`
+	}
+	if err := c.call(ctx, url.Values{"mode": {"queue"}, "nzo_ids": {id}}, &q); err != nil {
+		return nil, err
+	}
+	for _, s := range q.Queue.Slots {
+		if s.ID == id {
+			return &SabJob{ID: id, Name: s.Filename, Status: s.Status, Progress: num(s.Percentage) / 100, SizeMB: num(s.MB), LeftMB: num(s.MBLeft), TimeLeft: s.TimeLeft}, nil
+		}
+	}
+	var h struct {
+		History struct {
+			Slots []struct {
+				ID          string `json:"nzo_id"`
+				Name        string `json:"name"`
+				Status      string `json:"status"`
+				Storage     string `json:"storage"`
+				FailMessage string `json:"fail_message"`
+				Bytes       int64  `json:"bytes"`
+			} `json:"slots"`
+		} `json:"history"`
+	}
+	if err := c.call(ctx, url.Values{"mode": {"history"}, "nzo_ids": {id}, "limit": {"20"}}, &h); err != nil {
+		return nil, err
+	}
+	for _, s := range h.History.Slots {
+		if s.ID == id {
+			j := &SabJob{ID: id, Name: s.Name, Status: s.Status, Storage: s.Storage, Message: s.FailMessage, SizeMB: float64(s.Bytes) / (1 << 20)}
+			switch s.Status {
+			case "Completed":
+				j.Done, j.Progress = true, 1
+			case "Failed":
+				j.Failed = true
+			default: // Extracting, Verifying, Repairing, Moving…
+				j.Progress = 1
+			}
+			return j, nil
+		}
+	}
+	return nil, &Error{Status: http.StatusNotFound, Msg: "SABnzbd no longer has the download"}
+}
+
+// DeleteJob removes a download from the queue or the history (with its files).
+func (c *Sabnzbd) DeleteJob(ctx context.Context, id string) error {
+	_ = c.call(ctx, url.Values{"mode": {"queue"}, "name": {"delete"}, "value": {id}, "del_files": {"1"}}, nil)
+	return c.call(ctx, url.Values{"mode": {"history"}, "name": {"delete"}, "value": {id}, "del_files": {"1"}}, nil)
 }

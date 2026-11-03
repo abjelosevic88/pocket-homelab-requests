@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import { fmtDate, fmtDuration } from '../lib/format'
-import { KIND_ICON, KIND_LABEL, openVerb, shownState } from '../lib/states'
+import { KIND_ICON, KIND_LABEL, openIcon, openVerb, shownState } from '../lib/states'
 import type { Request, TitleDetail } from '../lib/types'
 import { Icon } from '../components/icons'
 import { announceChange, useCrumb } from '../components/Layout'
@@ -11,6 +11,7 @@ import { Empty, Loading, useAsync } from '../components/ui'
 import { RemoveModal } from '../components/RemoveModal'
 import { useApp } from '../lib/app-context'
 import ArtistPage from './Artist'
+import BookPage from './Book'
 import { fmtSize } from '../lib/states'
 import { TitleGrid } from '../components/media'
 
@@ -22,6 +23,7 @@ function titleAPI(kind: string, id: string): string {
 export default function TitlePage() {
   const { kind = 'movie', id = '' } = useParams()
   if (kind === 'artist') return <ArtistPage id={id} />
+  if (kind === 'book') return <BookPage id={id} />
   return <MediaTitle kind={kind} id={id} />
 }
 
@@ -65,7 +67,7 @@ function MediaTitle({ kind, id }: { kind: string; id: string }) {
               {(t.genres || []).slice(0, 4).map(g => <span key={g} className="chip">{g}</span>)}
             </div>
             <div className="title-actions">
-              {t.available && t.open_url && <a className="btn primary" href={t.open_url} target="_blank" rel="noreferrer"><Icon name={t.kind === 'album' ? 'headphones' : 'play'} size={15} />{openVerb(t.kind)}</a>}
+              {t.available && t.open_url && <a className="btn primary" href={t.open_url} target="_blank" rel="noreferrer"><Icon name={openIcon(t.kind)} size={15} />{openVerb(t.kind)}</a>}
               {t.available && !t.open_url && <span className="pill tone-ok">Already here</span>}
               {canAsk && <button type="button" className={`btn ${t.available ? '' : 'primary'}`} onClick={() => setAsking(true)}><Icon name="plus" size={15} />{mine ? 'Ask for more seasons' : 'Request'}</button>}
               {!mine && !t.available && t.requested_by_others && <span className="muted small">Someone already asked for this — your request joins theirs.</span>}
@@ -107,7 +109,7 @@ function MediaTitle({ kind, id }: { kind: string; id: string }) {
           <ul className="list">{t.requests.map(r => <li key={r.id}><Link to={`/requests/${r.id}`} className="list-row"><span className="grow">{fmtDate(r.created_at)}{r.seasons && r.seasons !== 'all' ? ` · seasons ${r.seasons}` : ''}</span><StatePill r={r} /></Link></li>)}</ul>
         </section>}
       </div>
-      {removing && t.kind !== 'artist' && <RemoveModal kind={t.kind} arrId={t.arr_id} onClose={() => setRemoving(false)} onDone={() => { setRemoving(false); announceChange(); reload() }} />}
+      {removing && t.kind !== 'artist' && t.kind !== 'book' && <RemoveModal kind={t.kind} arrId={t.arr_id} onClose={() => setRemoving(false)} onDone={() => { setRemoving(false); announceChange(); reload() }} />}
       {asking && <RequestModal t={t} onClose={() => setAsking(false)} onDone={r => { setAsking(false); announceChange(); reload(); if (!mine) navigate(`/requests/${r.id}`) }} />}
     </div>
   )

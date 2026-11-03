@@ -1,12 +1,13 @@
 export interface User { id: number; email: string; name: string; role: 'admin' | 'member'; request_policy?: '' | 'auto' | 'approve'; jellyfin_user_id?: string; jellyfin_username?: string; created_at: string }
 export interface APIToken { id: number; user_id: number; name: string; prefix: string; last_used_at: string | null; created_at: string }
 
-export type Kind = 'movie' | 'series' | 'album'
-/** What a search result or title page can be: artists have pages, but aren't asked for themselves. */
-export type TitleKind = Kind | 'artist'
+export type Kind = 'movie' | 'series' | 'album' | 'ebook' | 'audiobook'
+/** What a search result or title page can be: artists have pages, but aren't asked for themselves; a book is asked for as an ebook or an audiobook. */
+export type TitleKind = Kind | 'artist' | 'book'
+export type BookKind = 'ebook' | 'audiobook'
 export type ServiceMode = '' | 'auto' | 'core' | 'direct' | 'off'
 export type CareMode = 'off' | 'watch' | 'fix'
-export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb' | 'slskd' | 'sabnzbd' | 'navidrome'
+export type ServiceName = 'radarr' | 'sonarr' | 'lidarr' | 'prowlarr' | 'jellyfin' | 'jellyseerr' | 'tmdb' | 'slskd' | 'sabnzbd' | 'navidrome' | 'qbittorrent'
 
 export interface Settings {
   core_configured: boolean
@@ -26,13 +27,15 @@ export interface Settings {
   slskd_mode: ServiceMode; slskd_url: string; slskd_key: string; slskd_public_url: string
   sabnzbd_mode: ServiceMode; sabnzbd_url: string; sabnzbd_key: string; sabnzbd_public_url: string
   navidrome_mode: ServiceMode; navidrome_url: string; navidrome_key: string; navidrome_user: string; navidrome_public_url: string
+  qbittorrent_mode: ServiceMode; qbittorrent_url: string; qbittorrent_key: string; qbittorrent_user: string; qbittorrent_public_url: string
 
   movie_profile_id: number; movie_root: string; movie_availability: 'announced' | 'inCinemas' | 'released'
   series_profile_id: number; series_root: string; series_season_folders: boolean; series_type: 'standard' | 'anime' | 'daily'
   album_profile_id: number; album_metadata_profile_id: number; music_root: string
+  book_languages: string; ebook_formats: string; ebook_allow_pdf: boolean; book_auto_pick: boolean
 
   member_policy: 'auto' | 'approve'
-  movie_quota_week: number; series_quota_week: number; album_quota_week: number
+  movie_quota_week: number; series_quota_week: number; album_quota_week: number; book_quota_week: number
   members_can_search: boolean
 
   care_search_missed: CareMode; care_retry_failed: CareMode; care_unblock_imports: CareMode; care_jellyfin_scan: CareMode; care_drop_fakes: CareMode; care_lidarr: boolean
@@ -60,6 +63,7 @@ export interface Request {
   arr_id: number; jellyfin_id: string; created_at: string; updated_at: string; available_at: string; checked_at: string
   open_url?: string; person?: string
   can?: Can
+  book_key?: string; library_ref?: string
 }
 
 export interface TitleRequest { id: number; status: ReqStatus; state: ReqState; progress: number }
@@ -73,6 +77,17 @@ export interface Title {
   jellyfin_id?: string; open_url?: string
   request: TitleRequest | null
   requested_by_others: boolean
+  book_key?: string
+  book?: BookInfo
+}
+
+export interface HaveRef { id: string; title: string; url: string }
+export interface BookInfo {
+  authors: string[]; isbn: string; languages: string[]; series: string; pages: number; publisher: string
+  narrators: string[]; runtime_min: number; asin: string
+  have: Partial<Record<BookKind, HaveRef | null>>
+  requests: Partial<Record<BookKind, TitleRequest | null>>
+  have_unknown?: Partial<Record<BookKind, string>>
 }
 
 export interface SeasonInfo { number: number; episodes: number; aired: number; have: number; monitored: boolean; next_airing: string; requested: boolean }
@@ -97,6 +112,12 @@ export interface TitleDetail extends Title {
   // artists
   artist_type?: string; logo?: string; missing_albums?: number; library_albums?: number; lidarr?: boolean
   sections?: { key: string; title: string; items: Title[]; here: number }[]
+  // books
+  alt_titles?: string[]; subjects?: string[]
+  audiobook?: { asin: string; title: string; narrators: string[]; runtime_min: number; abridged: boolean; cover: string; series: string; series_index: string; url: string } | null
+  more_by_author?: Title[]
+  languages_wanted?: string[]
+  can_get?: { ok: boolean; reason?: string; torrents?: boolean; usenet?: boolean }
 }
 
 export interface ReqEvent { id: number; request_id: number; at: string; kind: string; message: string }
@@ -113,7 +134,7 @@ export interface Home {
   counts: Counts
   on_the_way: Request[]
   arrived: Request[]
-  services: { movies: boolean; series: boolean; music: boolean; tv_discover: boolean }
+  services: { movies: boolean; series: boolean; music: boolean; tv_discover: boolean; books?: boolean }
   admin?: { pending: number; problems: number; care_alerts: number; downloads: number }
 }
 

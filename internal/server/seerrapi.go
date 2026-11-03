@@ -705,8 +705,8 @@ func (s *Server) seerrListRequests(w http.ResponseWriter, r *http.Request) {
 	users := map[int64]map[string]any{}
 	out := []map[string]any{}
 	for _, rq := range list {
-		if rq.Kind == "album" {
-			continue
+		if rq.Kind == "album" || rq.IsBook() {
+			continue // Jellyseerr knows films and shows only
 		}
 		out = append(out, s.seerrRequestJSON(ctx, rq, users))
 	}
@@ -732,7 +732,7 @@ func (s *Server) seerrRequestCount(w http.ResponseWriter, r *http.Request) {
 	if processing < 0 {
 		processing = 0
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"total": t["total"] - t["kind:album"], "movie": t["kind:movie"], "tv": t["kind:series"],
+	writeJSON(w, http.StatusOK, map[string]any{"total": t["total"] - t["kind:album"] - t["kind:ebook"] - t["kind:audiobook"], "movie": t["kind:movie"], "tv": t["kind:series"],
 		"pending": t["status:pending"], "approved": t["status:approved"], "declined": t["status:declined"], "processing": processing,
 		"available": t["state:available"], "completed": t["state:available"]})
 }

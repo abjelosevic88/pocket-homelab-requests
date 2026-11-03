@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
-import { KIND_LABEL, KIND_PLURAL, openVerb, titleURL } from '../lib/states'
+import { KIND_LABEL, KIND_PLURAL, openIcon, openVerb, titleURL } from '../lib/states'
 import type { DiscoverRow, Kind, Request, Title } from '../lib/types'
 import { Icon } from '../components/icons'
 import { Poster, RequestModal, StatePill, TitleGrid } from '../components/media'
@@ -99,7 +99,7 @@ function Hero({ rowKey, rowTitle, load, hideAvailable }: { rowKey: string; rowTi
           {t.overview && <p className="disc-hero-overview">{t.overview}</p>}
           <div className="disc-hero-actions">
             {t.available
-              ? (t.open_url ? <a className="btn primary" href={t.open_url} target="_blank" rel="noreferrer"><Icon name={t.kind === 'album' ? 'headphones' : 'play'} size={15} />{openVerb(t.kind)}</a> : <span className="pill tone-ok">Here</span>)
+              ? (t.open_url ? <a className="btn primary" href={t.open_url} target="_blank" rel="noreferrer"><Icon name={openIcon(t.kind)} size={15} />{openVerb(t.kind)}</a> : <span className="pill tone-ok">Here</span>)
               : t.request
                 ? <Link to={`/requests/${t.request.id}`} className="disc-hero-req"><StatePill r={t.request} /><span>See your request</span></Link>
                 : <button type="button" className="btn primary" onClick={() => setAsking(true)}><Icon name="plus" size={15} />Request</button>}

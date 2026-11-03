@@ -33,7 +33,7 @@ export function CommandPalette({ onClose, commands }: { onClose: () => void; com
     const words = n.split(/\s+/).filter(Boolean)
     const hit = (text: string) => words.every(w => text.toLowerCase().includes(w))
     const cmds = commands.filter(c => !n || hit(`${c.label} ${c.keywords || ''}`)).map(c => ({ key: c.id, group: 'Commands', icon: <Icon name={c.icon} size={16} />, label: c.label, hint: c.hint, run: c.run }))
-    const found = titles.map(t => ({ key: t.key, group: 'Titles', icon: <Icon name={KIND_ICON[t.kind]} size={16} />, label: t.title, sub: [KIND_LABEL[t.kind], t.kind === 'album' ? t.subtitle : '', t.year || ''].filter(Boolean).join(' · '), run: () => navigate(titleURL(t)) }))
+    const found = titles.map(t => ({ key: t.key, group: 'Titles', icon: <Icon name={KIND_ICON[t.kind]} size={16} />, label: t.title, sub: [KIND_LABEL[t.kind], t.kind === 'album' || t.kind === 'book' ? t.subtitle : '', t.year || ''].filter(Boolean).join(' · '), run: () => navigate(titleURL(t)) }))
     const all: Row[] = n ? [...found, { key: 'search-all', group: 'Titles', icon: <Icon name="search" size={16} />, label: `Search for “${q.trim()}”`, run: () => navigate(`/search?q=${encodeURIComponent(q.trim())}`) }, ...cmds] : cmds
     return all
   }, [q, titles, commands, navigate])

@@ -50,6 +50,10 @@ type Title struct {
 
 	Request           *titleRequest `json:"request"`
 	RequestedByOthers bool          `json:"requested_by_others"`
+
+	// Books: the book's key and what the person has of it and asked for.
+	BookKey string     `json:"book_key,omitempty"`
+	Book    *bookTitle `json:"book,omitempty"`
 }
 
 type titleRequest struct {
@@ -60,7 +64,7 @@ type titleRequest struct {
 }
 
 func (t Title) key() store.TitleKey {
-	return store.TitleKey{Kind: t.Kind, TMDBID: t.TMDBID, TVDBID: t.TVDBID, MBID: t.MBID}
+	return store.TitleKey{Kind: t.Kind, TMDBID: t.TMDBID, TVDBID: t.TVDBID, MBID: t.MBID, BookKey: t.BookKey}
 }
 
 func movieTitle(m arr.Movie) Title {
@@ -213,6 +217,9 @@ func (s *Server) annotate(ctx context.Context, uid int64, ts []Title) []Title {
 	watch := s.publicSibling(ctx, "watch")
 	for i := range ts {
 		t := &ts[i]
+		if t.Kind == "book" {
+			continue // annotateBooks
+		}
 		switch t.Kind {
 		case "movie":
 			if movies == nil {
@@ -363,6 +370,27 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			return out, err
 		})
 	}
+	if kind == "" || kind == "all" || kind == "book" {
+		limit := 8
+		if kind == "book" {
+			limit = 30
+		}
+		ch := make(chan part, 1)
+		parts = append(parts, ch)
+		go func() {
+			cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			defer cancel()
+			ts, err := s.searchBooks(cctx, q, limit)
+			if err == nil {
+				haveChecks := 12
+				if kind != "book" {
+					haveChecks = 4
+				}
+				s.annotateBooks(cctx, actorID(ctx), ts, haveChecks)
+			}
+			ch <- part{"books", ts, err}
+		}()
+	}
 	errs := map[string]string{}
 	byKind := map[string][]Title{}
 	for _, ch := range parts {
@@ -394,6 +422,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	out = append(out, byKind["artist"]...)
 	out = append(out, byKind["album"]...)
+	out = append(out, byKind["book"]...)
 	writeJSON(w, http.StatusOK, map[string]any{"results": s.annotate(ctx, actorID(ctx), out), "errors": errs})
 }
 

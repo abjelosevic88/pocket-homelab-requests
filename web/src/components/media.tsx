@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import { ago } from '../lib/format'
-import { etaText, KIND_ICON, KIND_LABEL, shownState, stateLabel, stateTone, titleBadge, titleURL } from '../lib/states'
+import { etaText, isBookKind, KIND_ICON, KIND_LABEL, shownState, stateLabel, stateTone, titleBadge, titleURL } from '../lib/states'
 import type { Kind, Request, ServiceOptions, TitleDetail, Title, TitleKind } from '../lib/types'
 import { Icon } from './icons'
 import { Field, Modal, useToast } from './ui'
@@ -14,7 +14,7 @@ export function Poster({ src, kind, alt = '', size = 'md', className = '' }: { s
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [src])
   return (
-    <span className={`poster ${size} ${kind === 'album' ? 'square' : kind === 'artist' ? 'square round' : ''} ${className}`}>
+    <span className={`poster ${size} ${kind === 'album' || kind === 'audiobook' ? 'square' : kind === 'artist' ? 'square round' : ''} ${className}`}>
       {src && !broken ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setBroken(true)} /> : <span className="poster-ph"><Icon name={KIND_ICON[kind]} size={size === 'xs' ? 14 : size === 'sm' ? 18 : 26} /></span>}
     </span>
   )
@@ -54,7 +54,7 @@ export function TitleCard({ t }: { t: Title }) {
         {b && <span className={`tcard-badge tone-${b.tone}`}>{b.label}</span>}
       </span>
       <span className="tcard-title ellipsis">{t.title}</span>
-      <span className="tcard-sub ellipsis">{[t.subtitle && (t.kind === 'album' || t.kind === 'artist') ? t.subtitle : '', t.year || ''].filter(Boolean).join(' · ') || KIND_LABEL[t.kind]}</span>
+      <span className="tcard-sub ellipsis">{[t.subtitle && (t.kind === 'album' || t.kind === 'artist' || t.kind === 'book') ? t.subtitle : '', t.year || ''].filter(Boolean).join(' · ') || KIND_LABEL[t.kind]}</span>
     </Link>
   )
 }
@@ -80,7 +80,7 @@ export function RequestRow({ r, person }: { r: Request; person?: boolean }) {
       <Poster src={r.poster} kind={r.kind} size="sm" />
       <span className="rrow-main">
         <span className="rrow-title"><Icon name={KIND_ICON[r.kind]} size={13} className="muted" /><span className="ellipsis">{r.title}</span>{r.year > 0 && <span className="muted rrow-year">{r.year}</span>}</span>
-        <span className="rrow-sub ellipsis">{person && r.person ? <><b>{r.person}</b> · </> : null}{r.kind === 'series' && r.seasons && r.seasons !== 'all' ? `Seasons ${r.seasons} · ` : ''}{r.kind === 'album' && r.subtitle ? `${r.subtitle} · ` : ''}{detailLine(r) || ' '}</span>
+        <span className="rrow-sub ellipsis">{person && r.person ? <><b>{r.person}</b> · </> : null}{r.kind === 'series' && r.seasons && r.seasons !== 'all' ? `Seasons ${r.seasons} · ` : ''}{(r.kind === 'album' || isBookKind(r.kind)) && r.subtitle ? `${r.subtitle} · ` : ''}{detailLine(r) || ' '}</span>
         <Bar value={r.progress} show={busy} />
       </span>
       <span className="rrow-side">
@@ -175,7 +175,7 @@ export function RequestModal({ t, onClose, onDone }: { t: TitleDetail; onClose: 
 }
 
 /** Big search field (Home, Search). */
-export function SearchField({ value, onChange, onSubmit, autoFocus, placeholder = 'Search films, shows and music…' }: { value: string; onChange: (v: string) => void; onSubmit?: (v: string) => void; autoFocus?: boolean; placeholder?: string }) {
+export function SearchField({ value, onChange, onSubmit, autoFocus, placeholder = 'Search films, shows, music and books…' }: { value: string; onChange: (v: string) => void; onSubmit?: (v: string) => void; autoFocus?: boolean; placeholder?: string }) {
   return (
     <form className="big-search" role="search" onSubmit={e => { e.preventDefault(); onSubmit?.(value.trim()) }}>
       <Icon name="search" size={18} />

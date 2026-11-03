@@ -58,14 +58,20 @@ func (s *Server) public(ctx context.Context, r store.Request) publicRequest {
 			}
 		}
 	}
+	if r.IsBook() {
+		p.OpenURL = s.bookOpenURL(ctx, r)
+	}
 	st, _ := s.store.GetSettings(ctx, 0)
 	searchable := r.Status == "approved" && r.ArrID > 0 && (r.State == "searching" || r.State == "attention" || r.State == "partial" || r.State == "unreleased")
+	if r.IsBook() {
+		searchable = r.Status == "approved" && (r.State == "searching" || r.State == "attention" || r.State == "failed")
+	}
 	p.Can = requestCan{
 		Cancel: r.Status == "pending",
 		Remove: r.Status != "pending",
 		Search: searchable && (admin || st.MembersCanSearch),
 		Report: r.Status == "approved" && (r.State == "available" || r.State == "partial"),
-		Manage: admin && r.Status == "approved" && r.ArrID > 0,
+		Manage: admin && r.Status == "approved" && (r.ArrID > 0 || r.IsBook()),
 	}
 	if p.Can.Manage && r.Kind == "album" && r.State == "attention" {
 		p.Can.SoulseekRetry = s.soularrBlocked(r)
@@ -149,7 +155,11 @@ func (s *Server) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	events, _ := s.store.Events(ctx, rq.UserID, rq.ID)
 	problems, _ := s.store.ListProblems(ctx, rq.UserID, rq.ID)
 	var download any
-	if rq.Status == "approved" && rq.ArrID > 0 && (rq.State == "downloading" || rq.State == "importing" || rq.State == "attention") {
+	if rq.IsBook() {
+		if d := s.bookDownloadView(ctx, rq); d != nil {
+			download = d
+		}
+	} else if rq.Status == "approved" && rq.ArrID > 0 && (rq.State == "downloading" || rq.State == "importing" || rq.State == "attention") {
 		if items, err := s.queueFor(ctx, *rq); err == nil && len(items) > 0 {
 			download = downloadView(items)
 		}
@@ -194,6 +204,14 @@ type requestInput struct {
 	Note       string `json:"note"`
 	ProfileID  int64  `json:"profile_id"`
 	RootFolder string `json:"root_folder"`
+	// Books: which book (a key, else an ISBN or a title and author), in
+	// which language ("" = any the box reads) and whether a dramatisation.
+	BookKey    string `json:"book_key"`
+	ISBN       string `json:"isbn"`
+	Title      string `json:"title"`
+	Author     string `json:"author"`
+	Language   string `json:"language"`
+	Dramatized bool   `json:"dramatized"`
 }
 
 // seasonsString normalises the seasons field to "all" or "1,2,3".
@@ -313,21 +331,40 @@ func (s *Server) createRequest(ctx context.Context, u *store.User, in requestInp
 			return nil, &httpErr{status: http.StatusBadRequest, msg: "say which album (mbid)"}
 		}
 		rq.MBID, rq.ArtistMBID = strings.TrimSpace(in.MBID), strings.TrimSpace(in.ArtistMBID)
+	case "ebook", "audiobook":
+		b, err := s.findBook(ctx, in.BookKey, in.ISBN, in.Title, in.Author)
+		if err != nil {
+			return nil, &httpErr{status: http.StatusNotFound, msg: err.Error()}
+		}
+		rq.BookKey = b.Key
+		lang := strings.ToLower(strings.TrimSpace(in.Language))
+		if lang == "any" || len(lang) > 3 {
+			lang = ""
+		}
+		writeBookInfo(rq, bookInfo{Language: lang, Dramatized: in.Dramatized && in.Kind == "audiobook"})
 	default:
-		return nil, &httpErr{status: http.StatusBadRequest, msg: "kind is movie, series or album"}
+		return nil, &httpErr{status: http.StatusBadRequest, msg: "kind is movie, series, album, ebook or audiobook"}
 	}
-	if err := s.describe(ctx, rq); err != nil {
+	if rq.IsBook() {
+		if err := s.describeBook(ctx, rq, u.ID); err != nil {
+			return nil, err
+		}
+	} else if err := s.describe(ctx, rq); err != nil {
 		return nil, err
 	}
 	// asked already?
-	if prev, err := s.store.FindRequest(ctx, u.ID, store.TitleKey{Kind: rq.Kind, TMDBID: rq.TMDBID, TVDBID: rq.TVDBID, MBID: rq.MBID}); err == nil {
+	if prev, err := s.store.FindRequest(ctx, u.ID, store.TitleKey{Kind: rq.Kind, TMDBID: rq.TMDBID, TVDBID: rq.TVDBID, MBID: rq.MBID, BookKey: rq.BookKey}); err == nil {
 		if rq.Kind != "series" || coversSeasons(prev.Seasons, rq.Seasons) {
 			return nil, &httpErr{status: http.StatusConflict, msg: "You already asked for " + rq.Title + ".", extra: map[string]any{"request_id": prev.ID}}
 		}
 	}
 	// here already?
-	if rq.ArrID > 0 && rq.State == "available" {
-		return nil, &httpErr{status: http.StatusConflict, msg: rq.Title + " is already on the server."}
+	if (rq.ArrID > 0 || rq.IsBook()) && rq.State == "available" {
+		msg := rq.Title + " is already on the server."
+		if rq.IsBook() {
+			msg = map[string]string{"ebook": "You already have the ebook of ", "audiobook": "You already have the audiobook of "}[rq.Kind] + rq.Title + "."
+		}
+		return nil, &httpErr{status: http.StatusConflict, msg: msg, extra: map[string]any{"open_url": s.bookOpenURL(ctx, *rq)}}
 	}
 	box, _ := s.store.GetSettings(ctx, 0)
 	if !admin && source != "import" {
@@ -371,6 +408,12 @@ func createdMessage(rq *store.Request, source string) string {
 	default:
 		what = "Asked for from Pocket " + strings.ToUpper(source[:1]) + source[1:]
 	}
+	if rq.IsBook() {
+		what = strings.Replace(what, "it", "the "+rq.Kind, 1)
+		if info := readBookInfo(rq); info.Language != "" {
+			what += " (in " + arr.LanguageName(info.Language) + ")"
+		}
+	}
 	if rq.Kind == "series" {
 		if rq.Seasons == "all" {
 			what += " (all seasons)"
@@ -405,13 +448,13 @@ func coversSeasons(prev, next string) bool {
 }
 
 func (s *Server) checkQuota(ctx context.Context, uid int64, kind string, box store.Settings) error {
-	limit := map[string]int{"movie": box.MovieQuotaWeek, "series": box.SeriesQuotaWeek, "album": box.AlbumQuotaWeek}[kind]
+	limit := map[string]int{"movie": box.MovieQuotaWeek, "series": box.SeriesQuotaWeek, "album": box.AlbumQuotaWeek, "ebook": box.BookQuotaWeek, "audiobook": box.BookQuotaWeek}[kind]
 	if limit <= 0 {
 		return nil
 	}
 	since := time.Now().UTC().AddDate(0, 0, -7).Format(time.RFC3339)
 	if n := s.store.CountSince(ctx, uid, kind, since); n >= limit {
-		noun := map[string]string{"movie": "films", "series": "shows", "album": "albums"}[kind]
+		noun := map[string]string{"movie": "films", "series": "shows", "album": "albums", "ebook": "ebooks", "audiobook": "audiobooks"}[kind]
 		free := ""
 		if oldest := s.store.OldestSince(ctx, uid, kind, since); oldest != "" {
 			if t, err := time.Parse(time.RFC3339Nano, oldest); err == nil {
@@ -563,6 +606,14 @@ func (s *Server) sendSoon(id int64) {
 // send adds the title to Radarr/Sonarr/Lidarr (or switches it on there) and
 // starts a search. Failures are written on the request for a person to see.
 func (s *Server) send(ctx context.Context, rq *store.Request) {
+	if rq.IsBook() {
+		rq.State, rq.StateDetail = "searching", "Looking for a copy"
+		_ = s.store.SaveRequest(ctx, rq)
+		if err := s.searchBook(ctx, rq, "auto"); err != nil {
+			s.log.Warn("book search", "id", rq.ID, "title", rq.Title, "err", err)
+		}
+		return
+	}
 	box, _ := s.store.GetSettings(ctx, 0)
 	c, err := s.arrForKind(ctx, rq.Kind)
 	if err == nil {
@@ -874,6 +925,11 @@ func (s *Server) handleDeleteRequest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "this app may only remove requests it made")
 		return
 	}
+	if rq.IsBook() {
+		if d, err := s.store.CurrentBookDownload(ctx, rq.ID); err == nil && d.State == "downloading" {
+			s.removeFromClient(ctx, d, true) // nothing was filed from it yet
+		}
+	}
 	if err := s.store.DeleteRequest(ctx, uid, rq.ID); err != nil {
 		s.fail(w, err, "delete request")
 		return
@@ -922,6 +978,9 @@ func (s *Server) handleSearchAgain(w http.ResponseWriter, r *http.Request) {
 
 // searchFor starts a search for exactly what a request covers.
 func (s *Server) searchFor(ctx context.Context, rq *store.Request) error {
+	if rq.IsBook() {
+		return s.searchBook(ctx, rq, "person")
+	}
 	c, err := s.arrForKind(ctx, rq.Kind)
 	if err != nil {
 		return err
@@ -1162,6 +1221,12 @@ func (s *Server) manageable(w http.ResponseWriter, r *http.Request) (*store.Requ
 }
 
 func (s *Server) handleReleases(w http.ResponseWriter, r *http.Request) {
+	if rq, ok := s.bookRequest(w, r); rq != nil || !ok {
+		if ok {
+			s.handleBookReleases(w, r, rq)
+		}
+		return
+	}
 	rq, c, ok := s.manageable(w, r)
 	if !ok {
 		return
@@ -1233,6 +1298,12 @@ func (s *Server) handleReleases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGrab(w http.ResponseWriter, r *http.Request) {
+	if rq, ok := s.bookRequest(w, r); rq != nil || !ok {
+		if ok {
+			s.handleBookGrab(w, r, rq)
+		}
+		return
+	}
 	rq, c, ok := s.manageable(w, r)
 	if !ok {
 		return
@@ -1341,6 +1412,12 @@ func downloadView(items []arr.QueueItem) downloadInfo {
 }
 
 func (s *Server) handleImportPreview(w http.ResponseWriter, r *http.Request) {
+	if rq, ok := s.bookRequest(w, r); rq != nil || !ok {
+		if ok {
+			s.handleBookImportPreview(w, r, rq)
+		}
+		return
+	}
 	rq, c, ok := s.manageable(w, r)
 	if !ok {
 		return
@@ -1455,6 +1532,12 @@ func previewProblem(kind string, arrID int64, records []arr.QueueItem, preview [
 }
 
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
+	if rq, ok := s.bookRequest(w, r); rq != nil || !ok {
+		if ok {
+			s.handleBookImport(w, r, rq)
+		}
+		return
+	}
 	rq, c, ok := s.manageable(w, r)
 	if !ok {
 		return
@@ -1500,6 +1583,12 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 
 // handleReplace removes the current download (blocklisted) and searches for another.
 func (s *Server) handleReplace(w http.ResponseWriter, r *http.Request) {
+	if rq, ok := s.bookRequest(w, r); rq != nil || !ok {
+		if ok {
+			s.handleBookReplace(w, r, rq)
+		}
+		return
+	}
 	rq, c, ok := s.manageable(w, r)
 	if !ok {
 		return
@@ -1659,6 +1748,12 @@ func (s *Server) handleDownloads(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// books Requests fetches itself
+	for _, b := range s.bookDownloadRows(ctx, uid) {
+		rows = append(rows, row{App: "books", ID: b.ID, Kind: b.Kind, Title: b.Title, Subtitle: b.Subtitle, Poster: b.Poster, Progress: b.Progress,
+			ETA: b.ETA, Size: b.Size, SizeLeft: b.SizeLeft, Status: b.Status, State: b.State, Messages: b.Messages, Client: b.Client,
+			Indexer: b.Indexer, Quality: b.Quality, Protocol: b.Protocol, Added: b.Added, RequestID: b.RequestID, Stuck: b.Stuck})
+	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Added < rows[j].Added })
 	writeJSON(w, http.StatusOK, map[string]any{"items": rows, "errors": errs})
 }
@@ -1676,7 +1771,8 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		arrived = arrived[:8]
 	}
 	out := map[string]any{"counts": counts, "on_the_way": s.publicList(ctx, open), "arrived": s.publicList(ctx, arrived),
-		"services": map[string]bool{"movies": s.boxUp(ctx, "radarr"), "series": s.boxUp(ctx, "sonarr"), "music": s.boxUp(ctx, "lidarr"), "tv_discover": s.boxUp(ctx, "tmdb")}}
+		"services": map[string]bool{"movies": s.boxUp(ctx, "radarr"), "series": s.boxUp(ctx, "sonarr"), "music": s.boxUp(ctx, "lidarr"), "tv_discover": s.boxUp(ctx, "tmdb"),
+			"books": s.bookServices(ctx)["ok"] == true}}
 	if u.Role == "admin" {
 		since := time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)
 		cc, _ := s.store.CareCounts(ctx, since)

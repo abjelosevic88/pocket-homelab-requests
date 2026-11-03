@@ -57,12 +57,15 @@ func (s *Server) publicSettings(ctx context.Context, u *store.User, st store.Set
 			}
 		}
 		out["navidrome_user"] = st.NavidromeUser
+		out["qbittorrent_user"] = st.QbittorrentUser
 		for k, v := range map[string]any{
 			"movie_profile_id": st.MovieProfileID, "movie_root": st.MovieRoot, "movie_availability": st.MovieAvailability,
 			"series_profile_id": st.SeriesProfileID, "series_root": st.SeriesRoot, "series_season_folders": st.SeriesSeasonFolders, "series_type": st.SeriesType,
 			"album_profile_id": st.AlbumProfileID, "album_metadata_profile_id": st.AlbumMetadataID, "music_root": st.MusicRoot,
 			"member_policy": st.MemberPolicy, "movie_quota_week": st.MovieQuotaWeek, "series_quota_week": st.SeriesQuotaWeek, "album_quota_week": st.AlbumQuotaWeek,
 			"care_search_missed": careMode(st, "search_missed"), "care_retry_failed": careMode(st, "retry_failed"),
+			"book_languages": st.BookLanguages, "ebook_formats": st.EbookFormats, "ebook_allow_pdf": st.EbookAllowPDF,
+			"book_auto_pick": st.BookAutoPick, "book_quota_week": st.BookQuotaWeek,
 			"care_unblock_imports": careMode(st, "unblock_imports"), "care_jellyfin_scan": careMode(st, "jellyfin_scan"), "care_drop_fakes": careMode(st, "drop_fakes"), "care_lidarr": st.CareLidarr,
 		} {
 			out[k] = v
@@ -231,6 +234,23 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		idIn("album_profile_id", &cur.AlbumProfileID, in.AlbumProfileID)
 		idIn("album_metadata_profile_id", &cur.AlbumMetadataID, in.AlbumMetadataID)
 		text("navidrome_user", &cur.NavidromeUser, in.NavidromeUser)
+		text("qbittorrent_user", &cur.QbittorrentUser, in.QbittorrentUser)
+		if keys["book_languages"] {
+			cur.BookLanguages = cleanList(in.BookLanguages, 2, 3)
+			if cur.BookLanguages == "" {
+				bad("book_languages: at least one language code, e.g. en,sr")
+				return
+			}
+		}
+		if keys["ebook_formats"] {
+			cur.EbookFormats = cleanList(in.EbookFormats, 2, 5)
+			if cur.EbookFormats == "" {
+				bad("ebook_formats: at least one format, e.g. epub,azw3")
+				return
+			}
+		}
+		boolIn("ebook_allow_pdf", &cur.EbookAllowPDF, in.EbookAllowPDF)
+		boolIn("book_auto_pick", &cur.BookAutoPick, in.BookAutoPick)
 		text("movie_root", &cur.MovieRoot, in.MovieRoot)
 		text("series_root", &cur.SeriesRoot, in.SeriesRoot)
 		text("music_root", &cur.MusicRoot, in.MusicRoot)
@@ -247,7 +267,8 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			!pick("care_drop_fakes", &cur.CareDropFakes, in.CareDropFakes, "off", "watch", "fix") ||
 			!intIn("movie_quota_week", &cur.MovieQuotaWeek, in.MovieQuotaWeek, 0, 100) ||
 			!intIn("series_quota_week", &cur.SeriesQuotaWeek, in.SeriesQuotaWeek, 0, 100) ||
-			!intIn("album_quota_week", &cur.AlbumQuotaWeek, in.AlbumQuotaWeek, 0, 100) {
+			!intIn("album_quota_week", &cur.AlbumQuotaWeek, in.AlbumQuotaWeek, 0, 100) ||
+			!intIn("book_quota_week", &cur.BookQuotaWeek, in.BookQuotaWeek, 0, 100) {
 			return
 		}
 	}
@@ -275,6 +296,7 @@ func (s *Server) handleIntegrationTest(w http.ResponseWriter, r *http.Request) {
 		URL    string `json:"url"`
 		Key    string `json:"key"`
 		Format string `json:"format"`
+		User   string `json:"user"` // qBittorrent's login name
 	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid json")
@@ -306,7 +328,14 @@ func (s *Server) handleIntegrationTest(w http.ResponseWriter, r *http.Request) {
 		if typed {
 			pu, pk, _, _ := svcFields(&st, in.Which)
 			base, key := urlOr(*pu), keyOr(*pk)
-			msg, err = testService(ctx, in.Which, base, key, s.cfg.UserAgent)
+			if in.Which == "qbittorrent" {
+				var v string
+				if v, err = arr.NewQbit(base, firstNonEmpty(in.User, st.QbittorrentUser), key).Version(ctx); err == nil {
+					msg = "qBittorrent " + v + ", direct connection"
+				}
+			} else {
+				msg, err = testService(ctx, in.Which, base, key, s.cfg.UserAgent)
+			}
 		} else {
 			forgetBoxServices()
 			var ver string
@@ -540,4 +569,18 @@ func (s *Server) handleImportJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	s.trackSoon()
 	writeJSON(w, http.StatusOK, counts)
+}
+
+// cleanList keeps the comma-separated lowercase codes between lo and hi letters long.
+func cleanList(v string, lo, hi int) string {
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range strings.Split(strings.ToLower(v), ",") {
+		p = strings.TrimSpace(p)
+		if len(p) >= lo && len(p) <= hi && !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, ",")
 }

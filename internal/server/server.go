@@ -15,6 +15,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
+	"github.com/abjelosevic88/pocket-homelab-requests/internal/arr"
 	"github.com/abjelosevic88/pocket-homelab-requests/internal/config"
 	"github.com/abjelosevic88/pocket-homelab-requests/internal/store"
 )
@@ -55,6 +56,12 @@ type Server struct {
 
 	searchMu   sync.Mutex
 	lastSearch map[int64]time.Time // request id → last "Search again"
+
+	qbitMu     sync.Mutex
+	qbitClient *arr.Qbit
+
+	bookMu   sync.Mutex     // one book search/grab per request at a time
+	bookBusy map[int64]bool // request ids being searched or imported
 }
 
 type resolvedURL struct {
@@ -67,7 +74,7 @@ type resolvedURL struct {
 func New(cfg *config.Config, st *store.Store, log *slog.Logger, webFS fs.FS) *Server {
 	return &Server{cfg: cfg, store: st, log: log, webFS: webFS, started: time.Now(), oidc: &oidcProvider{},
 		core:     core.New(cfg.CoreURL, core.Options{DB: st.DB, TokenFile: cfg.DataDir + "/core.token", UserAgent: cfg.UserAgent}),
-		resolved: map[string]resolvedURL{}, trackNow: make(chan struct{}, 1), lastSearch: map[int64]time.Time{}}
+		resolved: map[string]resolvedURL{}, trackNow: make(chan struct{}, 1), lastSearch: map[int64]time.Time{}, bookBusy: map[int64]bool{}}
 }
 
 // Bootstrap seeds the first admin (if configured), the owner's integration
@@ -164,6 +171,9 @@ func (s *Server) ownerReady(ctx context.Context, owner int64) error {
 			*u, *k = sv.URL, sv.Key
 			if p != nil {
 				*p = sv.PublicURL
+			}
+			if name == "qbittorrent" {
+				box.QbittorrentUser = sv.User
 			}
 			boxChanged = true
 		}
@@ -262,22 +272,23 @@ var eventTopics = []string{"requests.created", "requests.approved", "requests.de
 func (s *Server) registerWithCore(ctx context.Context) error {
 	m := core.Manifest{
 		Slug: "requests", Name: "Pocket Requests",
-		Description: "Ask for films, shows and albums and follow them until they are there to watch or listen to: search and discover, approvals, a timeline for every request, downloads, problems, and library care that keeps Radarr, Sonarr and Lidarr moving (searches what was never searched, retries failed downloads, finishes blocked imports).",
+		Description: "Ask for films, shows, albums, ebooks and audiobooks and follow them until they are there to watch, listen to or read: search and discover, approvals, a timeline for every request, downloads, problems, books fetched straight from the indexers into Pocket Library and Pocket Audiobooks, and library care that keeps Radarr, Sonarr and Lidarr moving.",
 		Icon:        "/favicon.svg", Version: Version,
 		URL: s.cfg.CoreAppURL, PublicURL: s.cfg.BaseURL, HealthPath: "/healthz", EnvPrefix: "REQUESTS",
 		Publishes: eventTopics,
 		Offers:    linkOffers,
-		Uses:      []core.Use{core.InferenceUse()},
+		Uses:      []core.Use{core.InferenceUse(), libraryUse, audiobooksUse},
 		Services: []core.ServiceUse{
 			{Type: "radarr", Reason: "Add requested films, follow their downloads and keep them moving"},
 			{Type: "sonarr", Reason: "Add requested shows and seasons, follow their downloads and keep them moving"},
 			{Type: "lidarr", Reason: "Add requested albums and follow their downloads"},
-			{Type: "prowlarr", Reason: "Show which indexers are down"},
+			{Type: "prowlarr", Reason: "Look for ebooks and audiobooks in the indexers, and show which indexers are down"},
 			{Type: "jellyfin", Reason: "Check that what arrived can really be watched, and start a library scan when it can't"},
 			{Type: "jellyseerr", Reason: "Bring over the requests made in Jellyseerr"},
 			{Type: "tmdb", Reason: "Trending and popular shows to discover"},
 			{Type: "navidrome", Reason: "Open an album that arrived straight in Pocket Music"},
-			{Type: "sabnzbd", Reason: "Show usenet download speed, time left and free space, and pause or resume it"},
+			{Type: "sabnzbd", Reason: "Download books from usenet, and show usenet download speed, time left and free space (pause or resume it)"},
+			{Type: "qbittorrent", Reason: "Download the ebooks and audiobooks people ask for (torrents tagged with the request)"},
 			{Type: "slskd", Reason: "Show Soulseek downloads of requested albums (Soularr fetches them for Lidarr)"},
 		},
 	}

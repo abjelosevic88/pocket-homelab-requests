@@ -44,6 +44,8 @@ var boxDefs = map[string]boxDef{
 	"slskd":      {"slskd", "slskd (Soulseek)", true},
 	"sabnzbd":    {"sabnzbd", "SABnzbd", true},
 	"navidrome":  {"navidrome", "Navidrome", true},
+	// books' torrents go to it straight (Radarr, Sonarr and Lidarr have their own)
+	"qbittorrent": {"qbittorrent", "qBittorrent", true},
 }
 
 var errBoxOff = errors.New("switched off under Settings → Services")
@@ -72,6 +74,8 @@ func svcFields(st *store.Settings, name string) (url, key, public, mode *string)
 		return &st.SabnzbdURL, &st.SabnzbdKey, &st.SabnzbdPublic, &st.SabnzbdMode
 	case "navidrome":
 		return &st.NavidromeURL, &st.NavidromeKey, &st.NavidromePublic, &st.NavidromeMode
+	case "qbittorrent":
+		return &st.QbittorrentURL, &st.QbittorrentKey, &st.QbittorrentPublic, &st.QbittorrentMode
 	}
 	return nil, nil, nil, nil
 }
@@ -121,13 +125,20 @@ func (s *Server) resolveBoxService(ctx context.Context, name string) (*boxSvc, e
 		public = *pp
 	}
 	direct := func() (*boxSvc, error) {
+		user := st.NavidromeUser
+		if name == "qbittorrent" {
+			user = st.QbittorrentUser
+			if base != "" && key == "" && user == "" { // a qBittorrent that lets this address in without a login
+				return &boxSvc{name: name, base: strings.TrimRight(base, "/"), public: strings.TrimRight(firstNonEmpty(public, base), "/"), via: "direct"}, nil
+			}
+		}
 		if (def.needsURL && base == "") || key == "" {
 			if def.needsURL {
 				return nil, errors.New("not set up: add it in Pocket Core or enter its address and key under Settings → Services")
 			}
 			return nil, errors.New("not set up: add a key in Pocket Core or under Settings → Services")
 		}
-		return &boxSvc{name: name, base: strings.TrimRight(base, "/"), public: strings.TrimRight(firstNonEmpty(public, base), "/"), key: key, via: "direct", user: st.NavidromeUser}, nil
+		return &boxSvc{name: name, base: strings.TrimRight(base, "/"), public: strings.TrimRight(firstNonEmpty(public, base), "/"), key: key, via: "direct", user: user}, nil
 	}
 	viaCore := func() (*boxSvc, error) {
 		if !s.core.Configured() {
@@ -141,10 +152,10 @@ func (s *Server) resolveBoxService(ctx context.Context, name string) (*boxSvc, e
 		if err != nil {
 			return nil, errors.New(coreReason(err, def.label))
 		}
-		if name == "navidrome" { // a login, not a key
+		if name == "navidrome" || name == "qbittorrent" { // a login, not a key
 			user, pass := firstNonEmpty(cred.Fields["USER"], cred.Fields["USERNAME"]), firstNonEmpty(cred.Fields["PASSWORD"], cred.Key)
 			if cred.URL == "" || user == "" || pass == "" {
-				return nil, errors.New("Pocket Core has Navidrome without a login for the box owner (Pocket Core → Settings → My logins)")
+				return nil, errors.New("Pocket Core has " + def.label + " without a login for the box owner (Pocket Core → Settings → My logins)")
 			}
 			return &boxSvc{name: name, base: strings.TrimRight(cred.URL, "/"), public: strings.TrimRight(firstNonEmpty(cred.PublicURL, cred.URL), "/"), key: pass, user: user, via: "core"}, nil
 		}
@@ -240,6 +251,20 @@ func (s *Server) slskd(ctx context.Context) (*arr.Slskd, error) {
 		return nil, err
 	}
 	return arr.NewSlskd(svc.base, svc.key), nil
+}
+
+// qbit is the box's qBittorrent (one client, so its login is kept).
+func (s *Server) qbit(ctx context.Context) (*arr.Qbit, error) {
+	svc, err := s.boxService(ctx, "qbittorrent")
+	if err != nil {
+		return nil, err
+	}
+	s.qbitMu.Lock()
+	defer s.qbitMu.Unlock()
+	if s.qbitClient == nil || s.qbitClient.Base != svc.base || s.qbitClient.User != svc.user || s.qbitClient.Pass != svc.key {
+		s.qbitClient = arr.NewQbit(svc.base, svc.user, svc.key)
+	}
+	return s.qbitClient, nil
 }
 
 func (s *Server) tmdb(ctx context.Context) (*arr.TMDB, error) {
@@ -350,6 +375,12 @@ func (s *Server) pingService(ctx context.Context, name string) (string, error) {
 		return c.Version(ctx)
 	case "sabnzbd":
 		c, err := s.sabnzbd(ctx)
+		if err != nil {
+			return "", err
+		}
+		return c.Version(ctx)
+	case "qbittorrent":
+		c, err := s.qbit(ctx)
 		if err != nil {
 			return "", err
 		}

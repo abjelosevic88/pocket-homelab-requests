@@ -6,7 +6,7 @@ import type { Counts, Request } from '../lib/types'
 import { Icon } from '../components/icons'
 import { useOnChange } from '../components/Layout'
 import { RequestRow, usePoll } from '../components/media'
-import { Empty, Loading, PageHeader, useDebounce } from '../components/ui'
+import { Empty, Loading, PageHeader, Segmented, useDebounce } from '../components/ui'
 
 type Filter = 'all' | 'open' | 'ready' | 'attention' | 'waiting' | 'closed'
 const FILTERS: { id: Filter; label: string; count?: keyof Counts }[] = [
@@ -31,21 +31,26 @@ function query(f: Filter): string {
 
 const PAGE = 50
 
+type KindFilter = 'all' | 'movie' | 'series' | 'album' | 'book'
+const KINDS: { value: KindFilter; label: string }[] = [{ value: 'all', label: 'All' }, { value: 'movie', label: 'Films' }, { value: 'series', label: 'Shows' }, { value: 'album', label: 'Music' }, { value: 'book', label: 'Books' }]
+
 export default function Requests() {
   const [sp, setSp] = useSearchParams()
   const filter = (FILTERS.find(f => f.id === sp.get('filter'))?.id || 'all') as Filter
   const [q, setQ] = useState(sp.get('q') || '')
+  const kind = (KINDS.find(k => k.value === sp.get('kind'))?.value || 'all') as KindFilter
   const dq = useDebounce(q.trim(), 300)
   const [data, setData] = useState<{ items: Request[]; total: number; counts: Counts } | null>(null)
   const [limit, setLimit] = useState(PAGE)
   const [err, setErr] = useState('')
   const load = useCallback(() => {
-    const parts = [query(filter), dq ? `q=${encodeURIComponent(dq)}` : '', filter === 'closed' ? '' : `limit=${limit}`].filter(Boolean)
+    const parts = [query(filter), kind !== 'all' ? `kind=${kind}` : '', dq ? `q=${encodeURIComponent(dq)}` : '', filter === 'closed' ? '' : `limit=${limit}`].filter(Boolean)
     return api.get<{ items: Request[]; total: number; counts: Counts }>(`${V1}/requests?${parts.join('&')}`).then(d => { setData(d); setErr('') }).catch(e => setErr((e as Error).message))
-  }, [filter, dq, limit])
+  }, [filter, kind, dq, limit])
   useEffect(() => { load() }, [load])
   useOnChange(load)
   usePoll(load, 10000, !!data?.items.some(isBusy))
+  const setKind = (k: KindFilter) => { const n = new URLSearchParams(sp); if (k === 'all') n.delete('kind'); else n.set('kind', k); setSp(n, { replace: true }); setLimit(PAGE) }
   const setFilter = (f: Filter) => { const n = new URLSearchParams(sp); if (f === 'all') n.delete('filter'); else n.set('filter', f); setSp(n, { replace: true }); setLimit(PAGE) }
 
   // "closed" is declined, withdrawn and removed: the API has no single state for it, so filter here
@@ -60,6 +65,7 @@ export default function Requests() {
             return <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} className={`chip ${filter === f.id ? 'active' : ''}`} onClick={() => setFilter(f.id)}>{f.label}{n > 0 && <span className="chip-n">{n}</span>}</button>
           })}
         </div>
+        <Segmented size="sm" label="What" value={kind} onChange={setKind} options={KINDS} />
         <div className="search-box"><Icon name="search" size={15} /><input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Find in your requests" aria-label="Find in your requests" /></div>
       </div>
       {err && <div className="callout danger"><Icon name="alert" size={15} /><span>{err}</span></div>}

@@ -50,6 +50,10 @@ func (s *Server) track(ctx context.Context) {
 		if rq.Source == "demo" {
 			continue
 		}
+		if rq.IsBook() {
+			s.trackBook(ctx, rq)
+			continue
+		}
 		if rq.State == "failed" && rq.ArrID == 0 {
 			continue // couldn't be added; waits for a person
 		}
@@ -516,8 +520,11 @@ func (s *Server) apply(ctx context.Context, rq *store.Request, v view, jf arr.Je
 }
 
 func readyLine(kind string) string {
-	if kind == "album" {
+	if kind == "album" || kind == "audiobook" {
 		return "It's here — ready to listen to"
+	}
+	if kind == "ebook" {
+		return "It's here — ready to read"
 	}
 	return "It's here — ready to watch"
 }
@@ -537,6 +544,9 @@ func (s *Server) tellArrived(ctx context.Context, rq *store.Request, partial boo
 		if m := s.musicLink(ctx, rq.MBID, rq.Subtitle, rq.Title); m != "" {
 			link = m
 		}
+	}
+	if rq.IsBook() {
+		link = s.bookOpenURL(ctx, *rq)
 	}
 	go s.tellPersonLink(context.Background(), rq.UserID, title, body, "tada", "notify_available", firstNonEmpty(link, s.requestLink(rq.ID)))
 }

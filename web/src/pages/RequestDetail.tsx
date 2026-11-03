@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, V1 } from '../lib/api'
 import { useApp } from '../lib/app-context'
 import { ago, fmtDate, fmtDateTime } from '../lib/format'
-import { EVENT_ICON, etaText, fmtSize, isBusy, KIND_ICON, KIND_LABEL, openVerb, PROBLEM_KINDS, problemLabel, requestTitleURL, shownState } from '../lib/states'
+import { bookApp, EVENT_ICON, etaText, fmtSize, isBookKind, isBusy, KIND_ICON, KIND_LABEL, openIcon, openVerb, PROBLEM_KINDS, problemLabel, requestTitleURL, shownState } from '../lib/states'
 import type { ImportPreview, Release, RequestDetail as Detail } from '../lib/types'
 import { Icon } from '../components/icons'
 import { RemoveModal } from '../components/RemoveModal'
@@ -38,6 +38,7 @@ export default function RequestDetail() {
   const dl = data.download
   const hasDownload = !!dl
   const stuck = r.state === 'attention'
+  const book = isBookKind(r.kind)
   return (
     <div className="stack loose req-page">
       <div className="req-head">
@@ -45,12 +46,12 @@ export default function RequestDetail() {
         <div className="req-info">
           <span className="title-kind"><Icon name={KIND_ICON[r.kind]} size={13} />{KIND_LABEL[r.kind]}{r.kind === 'series' && r.seasons ? ` · ${r.seasons === 'all' ? 'all seasons' : `seasons ${r.seasons}`}` : ''}</span>
           <h1><Link to={requestTitleURL(r)}>{r.title}</Link>{r.year > 0 && <span className="muted req-year"> {r.year}</span>}</h1>
-          {r.kind === 'album' && r.subtitle && <p className="muted">{r.subtitle}</p>}
+          {(r.kind === 'album' || book) && r.subtitle && <p className="muted">{book ? `by ${r.subtitle}` : r.subtitle}</p>}
           <div className="row wrap" style={{ gap: 8 }}><StatePill r={r} /><span className="muted small">{detailLine(r)}</span></div>
           {r.total > 1 && r.state !== 'downloading' && <div className="req-have"><Bar value={r.total ? r.have / r.total : 0} /><span className="small muted tnum">{r.have} of {r.total} here</span></div>}
           {r.state === 'unreleased' && r.release_date && <p className="small muted">Expected {fmtDate(r.release_date)}.</p>}
           <div className="req-actions">
-            {s === 'available' && r.open_url && <a className="btn primary" href={r.open_url} target="_blank" rel="noreferrer"><Icon name={r.kind === 'album' ? 'headphones' : 'play'} size={15} />{openVerb(r.kind)}</a>}
+            {s === 'available' && r.open_url && <a className="btn primary" href={r.open_url} target="_blank" rel="noreferrer"><Icon name={openIcon(r.kind)} size={15} />{book ? `${openVerb(r.kind)} in ${bookApp(r.kind)}` : openVerb(r.kind)}</a>}
             {admin && r.status === 'pending' && <>
               <button type="button" className="btn primary" disabled={!!busy} onClick={() => act('approve', () => api.post(`${V1}/requests/${r.id}/approve`, {}), 'Approved')}><Icon name="check" size={15} />Approve</button>
               <button type="button" className="btn" disabled={!!busy} onClick={() => setDialog('decline')}><Icon name="x" size={15} />Decline</button>
@@ -64,11 +65,15 @@ export default function RequestDetail() {
           {admin && r.status === 'approved' && s !== 'available' && <div className="req-admin">
             <span className="small muted">Admin</span>
             <button type="button" className="btn sm" onClick={() => setDialog('releases')}><Icon name="list" size={13} />Pick a release</button>
-            {(stuck || hasDownload) && <button type="button" className="btn sm" onClick={() => setDialog('import')}><Icon name="archive" size={13} />Force import</button>}
+            {(stuck || hasDownload) && <button type="button" className="btn sm" onClick={() => setDialog('import')}><Icon name="archive" size={13} />{book ? 'File it again' : 'Force import'}</button>}
             {hasDownload && <button type="button" className="btn sm" onClick={() => setDialog('replace')}><Icon name="repeat" size={13} />Replace download</button>}
             {can.soulseek_retry && <button type="button" className="btn sm" onClick={() => setDialog('soulseek')}><Icon name="repeat" size={13} />Try Soulseek again</button>}
           </div>}
-          {admin && r.status === 'approved' && r.arr_id > 0 && s !== 'removed' && <div className="req-admin">
+          {admin && book && r.status === 'approved' && s === 'available' && <div className="req-admin">
+            <span className="small muted">Admin</span>
+            <button type="button" className="btn sm" onClick={() => setDialog('replace')}><Icon name="repeat" size={13} />Wrong book? Get another copy</button>
+          </div>}
+          {admin && !book && r.status === 'approved' && r.arr_id > 0 && s !== 'removed' && <div className="req-admin">
             <span className="small muted">Server</span>
             <button type="button" className="btn sm" onClick={() => setDialog('delete')}><Icon name="trash" size={13} />Remove from the server</button>
           </div>}
@@ -122,9 +127,9 @@ export default function RequestDetail() {
       {dialog === 'decline' && <DeclineModal onClose={() => setDialog(null)} onDecline={reason => { setDialog(null); act('decline', () => api.post(`${V1}/requests/${r.id}/decline`, { reason }), 'Declined') }} />}
       {dialog === 'delete' && <RemoveModal kind={r.kind} arrId={r.arr_id} onClose={() => setDialog(null)} onDone={() => { setDialog(null); announceChange(); reload() }} />}
       {dialog === 'soulseek' && <Confirm title="Let Soulseek try again?" message="Soularr gave up on this album after a download that wouldn't import. It comes off Soularr's list and a new search starts; Soularr looks again within half an hour. The old files stay in failed_imports." confirmLabel="Try again" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('soulseek', () => api.post(`${V1}/requests/${r.id}/soulseek-retry`), 'Soulseek will try again') }} />}
-      {dialog === 'replace' && <Confirm title="Replace this download?" message="The current download is removed and blocked, and a search for another copy starts." confirmLabel="Replace" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('replace', () => api.post(`${V1}/requests/${r.id}/replace`), 'Looking for another copy') }} />}
-      {dialog === 'releases' && <ReleasesModal id={r.id} seasons={r.kind === 'series' ? r.seasons : ''} onClose={() => setDialog(null)} onGrabbed={() => { setDialog(null); announceChange(); reload() }} />}
-      {dialog === 'import' && <ImportModal id={r.id} onClose={() => setDialog(null)} onDone={() => { setDialog(null); announceChange(); reload() }} />}
+      {dialog === 'replace' && <Confirm title={book && s === 'available' ? 'Get another copy?' : 'Replace this download?'} message={book ? 'This release is blocked for this book and a search for another copy starts. A file already filed stays where it is; delete it there if it’s wrong.' : 'The current download is removed and blocked, and a search for another copy starts.'} confirmLabel="Replace" onCancel={() => setDialog(null)} onConfirm={() => { setDialog(null); act('replace', () => api.post(`${V1}/requests/${r.id}/replace`), 'Looking for another copy') }} />}
+      {dialog === 'releases' && <ReleasesModal id={r.id} book={book} seasons={r.kind === 'series' ? r.seasons : ''} onClose={() => setDialog(null)} onGrabbed={() => { setDialog(null); announceChange(); reload() }} />}
+      {dialog === 'import' && <ImportModal id={r.id} book={book ? r.kind : ''} onClose={() => setDialog(null)} onDone={() => { setDialog(null); announceChange(); reload() }} />}
     </div>
   )
 }
@@ -161,7 +166,7 @@ export function DeclineModal({ onClose, onDecline, count }: { onClose: () => voi
   )
 }
 
-function ReleasesModal({ id, seasons, onClose, onGrabbed }: { id: number; seasons: string; onClose: () => void; onGrabbed: () => void }) {
+function ReleasesModal({ id, book, seasons, onClose, onGrabbed }: { id: number; book?: boolean; seasons: string; onClose: () => void; onGrabbed: () => void }) {
   const { toast } = useToast()
   const seasonList = seasons && seasons !== 'all' ? seasons.split(',').map(s => s.trim()).filter(Boolean) : []
   const [season, setSeason] = useState(seasonList[0] || '')
@@ -179,18 +184,18 @@ function ReleasesModal({ id, seasons, onClose, onGrabbed }: { id: number; season
       <div className="stack">
         <div className="row wrap">
           {seasonList.length > 1 && <Select ariaLabel="Season" value={season} onChange={setSeason} options={seasonList.map(s => ({ value: s, label: `Season ${s}` }))} />}
-          <span className="muted small grow">The indexers are searched now; this can take a minute.</span>
+          <span className="muted small grow">{book ? 'Prowlarr searches the indexers now; this can take a minute. Best fits first.' : 'The indexers are searched now; this can take a minute.'}</span>
           {hidden > 0 && <button type="button" className="link-btn small" onClick={() => setShowRejected(true)}>Show {hidden} the server would skip</button>}
         </div>
         {loading && <Loading label="Searching the indexers…" />}
         {error && <div className="callout danger"><Icon name="alert" size={15} /><span>{error}</span></div>}
         {data && !loading && items.length === 0 && <p className="muted">No releases found.</p>}
         {data && !loading && items.length > 0 && <div className="table-wrap"><table className="table compact releases">
-          <thead><tr><th>Release</th><th>Quality</th><th className="right">Size</th><th className="right">Peers</th><th>Indexer</th><th className="right">Age</th><th /></tr></thead>
+          <thead><tr><th>Release</th><th>{book ? 'Format' : 'Quality'}</th><th className="right">Size</th><th className="right">Peers</th><th>Indexer</th><th className="right">Age</th><th /></tr></thead>
           <tbody>{items.map(x => (
             <tr key={x.guid} className={x.rejections?.length ? 'rejected' : ''}>
               <td className="rel-title"><span className="ellipsis" title={x.title}>{x.title}</span>{x.rejections?.length > 0 && <span className="block small warn-text">{x.rejections.join('; ')}</span>}</td>
-              <td>{x.quality}{x.languages?.length ? <span className="block small muted">{x.languages.join(', ')}</span> : null}</td>
+              <td>{x.quality || (book ? <span className="muted">?</span> : '')}{x.languages?.length ? <span className="block small muted">{x.languages.join(', ')}</span> : null}</td>
               <td className="right tnum">{fmtSize(x.size)}</td>
               <td className="right tnum">{x.protocol === 'usenet' ? <span className="muted">usenet</span> : `${x.seeders ?? '?'}/${x.leechers ?? '?'}`}</td>
               <td className="ellipsis">{x.indexer}</td>
@@ -204,25 +209,25 @@ function ReleasesModal({ id, seasons, onClose, onGrabbed }: { id: number; season
   )
 }
 
-function ImportModal({ id, onClose, onDone }: { id: number; onClose: () => void; onDone: () => void }) {
+function ImportModal({ id, book, onClose, onDone }: { id: number; book: string; onClose: () => void; onDone: () => void }) {
   const { toast } = useToast()
   const { data, error, loading } = useAsync(() => api.get<ImportPreview>(`${V1}/requests/${id}/import`), [id])
   const [busy, setBusy] = useState(false)
   const run = async () => {
     if (!data) return
     setBusy(true)
-    try { const r = await api.post<{ status: string }>(`${V1}/requests/${id}/import`, { download_id: data.download_id }); toast(r.status === 'completed' ? 'Imported' : `Import ${r.status}`); onDone() } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
+    try { const r = await api.post<{ status: string }>(`${V1}/requests/${id}/import`, { download_id: data.download_id }); toast(r.status === 'completed' ? (book ? `Filed for ${bookApp(book)}` : 'Imported') : book ? 'It couldn’t be filed; see the timeline' : `Import ${r.status}`); onDone() } catch (e) { toast((e as Error).message, 'err') } finally { setBusy(false) }
   }
   return (
-    <Modal title="Force import" onClose={onClose} size="lg" footer={<>
+    <Modal title={book ? 'File it again' : 'Force import'} onClose={onClose} size="lg" footer={<>
       <button type="button" className="btn" onClick={onClose}>Cancel</button>
-      <button type="button" className="btn primary" disabled={!data || !data.files.length || busy || loading} onClick={run}>{busy ? 'Importing…' : 'Import these files'}</button>
+      <button type="button" className="btn primary" disabled={!data || !data.files.length || busy || loading} onClick={run}>{busy ? (book ? 'Filing…' : 'Importing…') : book ? `File it for ${bookApp(book)}` : 'Import these files'}</button>
     </>}>
       <div className="stack">
-        {loading && <Loading label="Asking what an import would do…" />}
+        {loading && <Loading label={book ? 'Looking at the download…' : 'Asking what an import would do…'} />}
         {error && <div className="callout danger"><Icon name="alert" size={15} /><span>{error}</span></div>}
         {data && <>
-          <div className={`callout ${data.ok ? 'ok' : 'warn'}`}><Icon name={data.ok ? 'check-circle' : 'alert'} size={15} /><span>{data.ok ? 'Every file matches what was asked for.' : data.reason || 'Some files don’t match; check them before importing.'}</span></div>
+          <div className={`callout ${data.ok ? 'ok' : 'warn'}`}><Icon name={data.ok ? 'check-circle' : 'alert'} size={15} /><span>{data.ok ? (book ? `The download has a ${book} file; the best one is filed.` : 'Every file matches what was asked for.') : data.reason || 'Some files don’t match; check them before importing.'}</span></div>
           {data.files.length > 0 ? <div className="table-wrap"><table className="table compact">
             <thead><tr><th>File</th><th className="right">Size</th><th>Goes to</th></tr></thead>
             <tbody>{data.files.map(f => <tr key={f.name}><td className="ellipsis" title={f.name}>{f.name}{f.rejections && <span className="block small warn-text">{f.rejections}</span>}</td><td className="right tnum">{fmtSize(f.size)}</td><td>{f.maps_to || <span className="muted">—</span>}</td></tr>)}</tbody>

@@ -16,8 +16,8 @@ type TabId = 'general' | 'notifications' | 'services' | 'requests' | 'jellyseerr
 const TABS: { id: TabId; label: string; icon: string; sub: string; admin?: boolean }[] = [
   { id: 'general', label: 'General', icon: 'sliders', sub: 'Dates, times, and what Discover shows you.' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', sub: 'A push when something you asked for is approved, ready, or stuck.' },
-  { id: 'services', label: 'Services', icon: 'server', sub: 'Radarr, Sonarr and Lidarr do the fetching; Jellyfin says when it’s there to watch. On a box with Pocket Core they come from Core.', admin: true },
-  { id: 'requests', label: 'Where requests go', icon: 'inbox', sub: 'Quality and folders for new requests, who needs approval, and weekly limits.', admin: true },
+  { id: 'services', label: 'Services', icon: 'server', sub: 'Radarr, Sonarr and Lidarr do the fetching; books are fetched through Prowlarr with qBittorrent or SABnzbd; Jellyfin says when it’s there to watch. On a box with Pocket Core they come from Core.', admin: true },
+  { id: 'requests', label: 'Where requests go', icon: 'inbox', sub: 'Quality and folders for new requests, books, who needs approval, and weekly limits.', admin: true },
   { id: 'jellyseerr', label: 'Jellyseerr apps', icon: 'link', sub: 'Apps made for Jellyseerr (Pocket Watch, Homepage, Uptime Kuma, phone apps) can talk to Pocket Requests instead.', admin: true },
   { id: 'ai', label: 'AI', icon: 'sparkles', sub: 'Who suggests titles when you describe what you’re in the mood for: Pocket AI through Core, or your own OpenAI key.' },
   { id: 'profile', label: 'Profile', icon: 'user', sub: 'Your name, email and password.' },
@@ -176,10 +176,11 @@ const SERVICES: { name: ServiceName; label: string; icon: string; what: string; 
   { name: 'radarr', label: 'Radarr', icon: 'film', what: 'Finds and downloads films.', placeholder: 'http://host.docker.internal:7878' },
   { name: 'sonarr', label: 'Sonarr', icon: 'tv', what: 'Finds and downloads shows.', placeholder: 'http://host.docker.internal:8989' },
   { name: 'lidarr', label: 'Lidarr', icon: 'music', what: 'Finds and downloads music. Without it, music is greyed out.', placeholder: 'http://host.docker.internal:8686' },
-  { name: 'prowlarr', label: 'Prowlarr', icon: 'search', what: 'Shows which indexers are down (read only).', placeholder: 'http://host.docker.internal:9696' },
+  { name: 'prowlarr', label: 'Prowlarr', icon: 'search', what: 'Searches the indexers for books, and shows which indexers are down. Without it, books can’t be fetched.', placeholder: 'http://host.docker.internal:9696' },
   { name: 'jellyfin', label: 'Jellyfin', icon: 'play', what: 'Confirms a title is really there to watch, and gives the Watch link.', placeholder: 'http://host.docker.internal:8096' },
   { name: 'jellyseerr', label: 'Jellyseerr', icon: 'inbox', what: 'Only to bring old requests over (Backup & data).', placeholder: 'http://host.docker.internal:5055' },
-  { name: 'sabnzbd', label: 'SABnzbd', icon: 'download', what: 'Usenet downloads: speed, time left and free space on Downloads, and pause / resume.', placeholder: 'http://host.docker.internal:8131' },
+  { name: 'sabnzbd', label: 'SABnzbd', icon: 'download', what: 'Usenet downloads: speed, time left and free space on Downloads, pause / resume, and the books’ usenet releases.', placeholder: 'http://host.docker.internal:8131' },
+  { name: 'qbittorrent', label: 'qBittorrent', icon: 'download', what: 'Takes the books’ torrents (Radarr, Sonarr and Lidarr use their own). Leave user and password empty if it lets this app in without a login.', login: true, placeholder: 'http://host.docker.internal:8111' },
   { name: 'slskd', label: 'slskd (Soulseek)', icon: 'download', what: 'Shows Soulseek downloads of requested albums (Soularr fetches them for Lidarr).', placeholder: 'http://host.docker.internal:5030' },
   { name: 'navidrome', label: 'Navidrome', icon: 'music', what: 'Lets “Listen” on an album that arrived open it in Pocket Music.', login: true, placeholder: 'http://host.docker.internal:4533' },
   { name: 'tmdb', label: 'TMDb', icon: 'star', what: 'Trending and popular shows on Discover. Films don’t need it.', noURL: true, placeholder: '' },
@@ -200,7 +201,7 @@ function Services() {
       {SERVICES.map(svc => (
         <ServiceBlock key={svc.name} svc={svc} st={data?.[svc.name]} coreOn={coreOn} field={field} set={set}
           onMode={m => saveAndCheck({ [`${svc.name}_mode`]: m } as Partial<SettingsT>)}
-          test={<><button type="button" className="btn sm" onClick={() => run(svc.name, svc.noURL ? '' : field(`${svc.name}_url`), field(`${svc.name}_key`))}>Test</button>{status(svc.name)}</>} />
+          test={<><button type="button" className="btn sm" onClick={() => run(svc.name, svc.noURL ? '' : field(`${svc.name}_url`), field(`${svc.name}_key`), svc.name === 'qbittorrent' ? { user: field('qbittorrent_user') } : {})}>Test</button>{status(svc.name)}</>} />
       ))}
       <div className="row"><button type="button" className="btn primary" onClick={() => saveAndCheck()} disabled={busy}>Save changes</button></div>
     </div>
@@ -275,6 +276,12 @@ function RequestRules() {
         <SettingRow title="Which releases" help="Lidarr’s metadata profile."><Select ariaLabel="Metadata profile" value={String(f.album_metadata_profile_id || 0)} onChange={v => setF({ ...f, album_metadata_profile_id: Number(v) })} options={prof(opts?.lidarr?.metadata_profiles)} /></SettingRow>
         <SettingRow title="Folder"><Select ariaLabel="Music folder" value={f.music_root} onChange={v => setF({ ...f, music_root: v })} options={roots(opts?.lidarr?.roots)} /></SettingRow>
       </Section>
+      <Section title="Books" icon="book" sub={<>Ebooks and audiobooks are looked for in Prowlarr’s indexers and fetched with qBittorrent (torrents) or SABnzbd (usenet). Ebooks go to Pocket Library, audiobooks to Pocket Audiobooks. To see which books someone already has, turn on “Pocket Requests → Pocket Library” and “Pocket Requests → Pocket Audiobooks” in Pocket Core, Links.{!(f.core_configured) && <CoreHint />}</>}>
+        <SettingRow title="Languages" help="Language codes, best first (en English, sr Serbian, hr Croatian, bs Bosnian, de German…). A release in another language is skipped."><input value={f.book_languages || ''} onChange={e => setF({ ...f, book_languages: e.target.value })} placeholder="en,sr,hr,bs" /></SettingRow>
+        <SettingRow title="Ebook formats" help="Best first. Pocket Library reads epub best; azw3, mobi and fb2 work too."><input value={f.ebook_formats || ''} onChange={e => setF({ ...f, ebook_formats: e.target.value })} placeholder="epub,azw3,mobi,fb2" /></SettingRow>
+        <SettingRow title="A PDF will do" help="When there’s nothing else. PDFs read badly on phones and e-readers."><Switch checked={!!f.ebook_allow_pdf} onChange={v => setF({ ...f, ebook_allow_pdf: v })} label="Allow PDF" /></SettingRow>
+        <SettingRow title="Pick a release on its own" help="Off: when a copy is found, the request waits for an admin to pick it (Pick a release on the request)."><Switch checked={!!f.book_auto_pick} onChange={v => setF({ ...f, book_auto_pick: v })} label="Pick a release on its own" /></SettingRow>
+      </Section>
       <Section title="Approvals" icon="check-square" sub="Admins’ own requests always go straight through. Each person can have their own rule under People.">
         <SettingRow title="Members’ requests"><Segmented size="sm" value={f.member_policy} onChange={v => setF({ ...f, member_policy: v })} options={[{ value: 'auto', label: 'Approve automatically' }, { value: 'approve', label: 'I decide' }]} /></SettingRow>
         <SettingRow title="Members may press “Search again”" help="At most once every 15 minutes per request."><Switch checked={f.members_can_search} onChange={v => setF({ ...f, members_can_search: v })} label="Members may search again" /></SettingRow>
@@ -283,6 +290,7 @@ function RequestRules() {
         {num('movie_quota_week', 'Films')}
         {num('series_quota_week', 'Shows')}
         {num('album_quota_week', 'Albums')}
+        {num('book_quota_week', 'Ebooks, and audiobooks (each)')}
       </Section>
       <div className="row"><button type="button" className="btn primary" onClick={() => save()} disabled={busy}>Save changes</button></div>
     </div>

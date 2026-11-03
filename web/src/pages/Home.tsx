@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/app-context'
-import { etaText, KIND_ICON, openVerb } from '../lib/states'
+import { etaText, KIND_ICON, openIcon, openVerb } from '../lib/states'
 import type { Request } from '../lib/types'
 import { Icon } from '../components/icons'
 import { useHome } from '../components/Layout'
@@ -43,7 +43,7 @@ export default function HomePage() {
 
       {nothing ? (
         <div className="card"><Empty title="Nothing asked for yet" icon="ticket">
-          Find a film, a show or an album and press Request. You’ll see it here until it’s ready.
+          Find a film, a show, an album or a book and press Request. You’ll see it here until it’s ready.
           <div className="row mt" style={{ justifyContent: 'center' }}><Link to="/discover" className="btn primary"><Icon name="compass" size={15} />Browse what’s popular</Link></div>
         </Empty></div>
       ) : <>
@@ -85,7 +85,7 @@ function ReadyCard({ r }: { r: Request }) {
     <div className="ready-card">
       <Link to={`/requests/${r.id}`} className="ready-art"><Poster src={r.poster} kind={r.kind} /></Link>
       <span className="ready-title ellipsis" title={r.title}>{r.title}</span>
-      {r.open_url ? <a href={r.open_url} className="btn sm primary" target="_blank" rel="noreferrer"><Icon name={r.kind === 'album' ? 'headphones' : 'play'} size={13} />{openVerb(r.kind)}</a>
+      {r.open_url ? <a href={r.open_url} className="btn sm primary" target="_blank" rel="noreferrer"><Icon name={openIcon(r.kind)} size={13} />{openVerb(r.kind)}</a>
         : <span className="muted small">Ready</span>}
     </div>
   )
