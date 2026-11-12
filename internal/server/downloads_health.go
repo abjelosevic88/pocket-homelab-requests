@@ -321,7 +321,7 @@ func (s *Server) handleDownloadsHealth(w http.ResponseWriter, r *http.Request) {
 				if rerr == nil {
 					for _, rf := range roots {
 						d := dlDisk{App: name, What: what[name], Path: rf.Path, Free: rf.FreeSpace}
-						if sp := diskFor(rf.Path, spaces); sp != nil {
+						if sp := diskFor(rf.Path, rf.FreeSpace, spaces); sp != nil {
 							d.Total = sp.TotalSpace
 							if d.Free == 0 {
 								d.Free = sp.FreeSpace
@@ -439,8 +439,10 @@ func (s *Server) handleDownloadsHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// diskFor is the disk a folder is on (the longest matching mount).
-func diskFor(path string, spaces []arr.DiskSpace) *arr.DiskSpace {
+// diskFor is the disk a folder is on: the longest matching mount, unless its
+// free space doesn't fit the folder's (a container sees its own mounts) —
+// then the disk with the same free space, or none.
+func diskFor(path string, free int64, spaces []arr.DiskSpace) *arr.DiskSpace {
 	var best *arr.DiskSpace
 	for i := range spaces {
 		p := strings.TrimRight(spaces[i].Path, "/")
@@ -450,7 +452,22 @@ func diskFor(path string, spaces []arr.DiskSpace) *arr.DiskSpace {
 			}
 		}
 	}
-	return best
+	near := func(d *arr.DiskSpace) bool {
+		diff := d.FreeSpace - free
+		if diff < 0 {
+			diff = -diff
+		}
+		return d.TotalSpace >= free && diff <= free/50+(1<<30)
+	}
+	if free <= 0 || (best != nil && near(best)) {
+		return best
+	}
+	for i := range spaces {
+		if near(&spaces[i]) {
+			return &spaces[i]
+		}
+	}
+	return nil
 }
 
 func diskOrder(app string) int {

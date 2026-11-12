@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/abjelosevic88/pocket-homelab-requests/internal/arr"
 )
 
 // fakeDownloads is SABnzbd and Prowlarr with as many news servers and
@@ -174,5 +176,20 @@ func TestRequestNotReadySaysWhomToAsk(t *testing.T) {
 	code, body = tb.do(tb.aliceTok, "POST", "/api/v1/requests", map[string]any{"kind": "movie", "tmdb_id": 438631})
 	if code != http.StatusServiceUnavailable || !strings.HasPrefix(body["error"].(string), "Films need Radarr") || body["settings_url"] != "/settings/services" {
 		t.Fatalf("admin = %d %v", code, body)
+	}
+}
+
+func TestDiskFor(t *testing.T) {
+	const g = 1 << 30
+	spaces := []arr.DiskSpace{{Path: "/", FreeSpace: 50 * g, TotalSpace: 100 * g}, {Path: "/config", FreeSpace: 400 * g, TotalSpace: 938 * g}, {Path: "/media", FreeSpace: 4843 * g, TotalSpace: 10792 * g}}
+	if d := diskFor("/media/movies", 4843*g, spaces); d == nil || d.Path != "/media" {
+		t.Fatalf("movies on %+v", d)
+	}
+	// the folder's own mount isn't listed: the disk with the same free space
+	if d := diskFor("/shows", 4843*g, spaces); d == nil || d.Path != "/media" {
+		t.Fatalf("shows on %+v", d)
+	}
+	if d := diskFor("/elsewhere", 7*g, spaces); d != nil {
+		t.Fatalf("unknown disk = %+v", d)
 	}
 }
