@@ -36,6 +36,7 @@ Environment variables; every one has a default. Personal settings (formats, noti
 | `TRACK_EVERY` | `1m` | How often open requests are compared with Radarr/Sonarr/Lidarr |
 | `CARE_EVERY` | `10m` | How often library care runs |
 | `CORE_URL`, `CORE_REGISTRATION_KEY`, `CORE_APP_URL` | – | Pocket Core |
+| `CORE_PUBLIC_URL` | the issuer Core names | Where people open Pocket Core (the "Finish Downloads setup" link goes to its Settings → System → Downloads) |
 | `TRUST_PROXY`, `METRICS_ENABLED`, `LOG_LEVEL`, `LOG_FORMAT` | `true`, `true`, `info`, `text` | |
 | `DEMO_DATA` | `false` | Seed a household's requests into the owner account (screenshots, trying it out) |
 

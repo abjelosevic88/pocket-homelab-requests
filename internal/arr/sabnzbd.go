@@ -80,6 +80,8 @@ type SabStatus struct {
 	DiskFreeGB float64 `json:"disk_free_gb"`
 	DiskGB     float64 `json:"disk_total_gb"`
 	SpeedLimit string  `json:"speed_limit"`
+	// LimitKBps is the speed cap in KB/s (0 = none).
+	LimitKBps float64 `json:"limit_kbps"`
 }
 
 func num(s string) float64 {
@@ -100,6 +102,7 @@ func (c *Sabnzbd) Status(ctx context.Context) (*SabStatus, error) {
 			DiskSpace1     string `json:"diskspace1"`
 			DiskSpaceTotal string `json:"diskspacetotal1"`
 			SpeedLimit     string `json:"speedlimit"`
+			SpeedLimitAbs  string `json:"speedlimit_abs"`
 		} `json:"queue"`
 	}
 	if err := c.call(ctx, url.Values{"mode": {"queue"}, "limit": {"1"}}, &out); err != nil {
@@ -107,7 +110,7 @@ func (c *Sabnzbd) Status(ctx context.Context) (*SabStatus, error) {
 	}
 	q := out.Queue
 	return &SabStatus{Status: q.Status, Paused: q.Paused, KBps: num(q.KBPerSec), SizeLeftMB: num(q.MBLeft), TimeLeft: q.TimeLeft, Items: q.NoOfSlots,
-		DiskFreeGB: num(q.DiskSpace1), DiskGB: num(q.DiskSpaceTotal), SpeedLimit: q.SpeedLimit}, nil
+		DiskFreeGB: num(q.DiskSpace1), DiskGB: num(q.DiskSpaceTotal), SpeedLimit: q.SpeedLimit, LimitKBps: num(q.SpeedLimitAbs) / 1024}, nil
 }
 
 // Pause pauses the whole queue; Resume starts it again.

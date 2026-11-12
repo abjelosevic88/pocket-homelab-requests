@@ -41,6 +41,7 @@ type Server struct {
 	coreMu   sync.Mutex
 	coreOK   bool
 	coreErr  string
+	coreIss  string // Core's public address, as it named itself at registration
 	resolved map[string]resolvedURL
 
 	trackMu  sync.Mutex // one tracker round at a time
@@ -299,6 +300,11 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if iss := strings.TrimRight(reg.Core.Issuer, "/"); iss != "" {
+		s.coreMu.Lock()
+		s.coreIss = iss
+		s.coreMu.Unlock()
+	}
 	if reg.Token != "" {
 		s.log.Info("pocket core: registered, app token stored", "core", s.cfg.CoreURL)
 	} else {
@@ -337,6 +343,25 @@ func (s *Server) sibling(ctx context.Context, slug string) resolvedURL {
 	s.resolved[slug] = r
 	s.coreMu.Unlock()
 	return r
+}
+
+// corePublicURL is where people open Pocket Core ("" without Core): set
+// CORE_PUBLIC_URL, else the issuer Core named (its public address), else
+// CORE_URL.
+func (s *Server) corePublicURL() string {
+	if !s.core.Configured() {
+		return ""
+	}
+	if s.cfg.CorePublicURL != "" {
+		return s.cfg.CorePublicURL
+	}
+	if o := s.core.OIDC(); o.Issuer != "" {
+		return strings.TrimRight(o.Issuer, "/")
+	}
+	s.coreMu.Lock()
+	iss := s.coreIss
+	s.coreMu.Unlock()
+	return firstNonEmpty(iss, s.cfg.CoreURL)
 }
 
 // coreStatus summarises the Pocket Core link for the About page.

@@ -276,6 +276,15 @@ func (s *Server) handleSabAction(w http.ResponseWriter, r *http.Request) {
 		err = c.Pause(r.Context())
 	case "resume":
 		err = c.Resume(r.Context())
+	case "limit": // {"kbps": n}, 0 lifts the cap
+		var in struct {
+			KBps int `json:"kbps"`
+		}
+		if decode(r, &in) != nil || in.KBps < 0 {
+			writeErr(w, http.StatusBadRequest, "say the speed limit in KB/s (kbps, 0 for none)")
+			return
+		}
+		err = c.SetSpeedLimit(r.Context(), in.KBps)
 	default:
 		writeErr(w, http.StatusNotFound, "unknown action")
 		return

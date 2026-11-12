@@ -95,6 +95,8 @@ func (s *Server) Router() http.Handler {
 			r.Get("/problems", s.handleListProblems)
 			r.Put("/problems/{id}", s.handleResolveProblem)
 			r.Get("/downloads", s.handleDownloads)
+			r.Get("/downloads/setup", s.handleDownloadsSetup)
+			r.Get("/downloads/health", s.handleDownloadsHealth)
 			r.Get("/downloads/sabnzbd", s.handleSabStatus)
 			r.Post("/downloads/sabnzbd/{action}", s.handleSabAction)
 			r.Get("/library/{kind}/{id}/removal", s.handleRemovalPreview)

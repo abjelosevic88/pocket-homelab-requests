@@ -9,6 +9,7 @@ import type { Kind, Request, ServiceOptions, TitleDetail, Title, TitleKind } fro
 import { Icon } from './icons'
 import { Field, Modal, useToast } from './ui'
 import { Select } from './Select'
+import { kindReady, notReadyText, SetupLink, useSetup } from '../lib/setup'
 
 export function Poster({ src, kind, alt = '', size = 'md', className = '' }: { src?: string; kind: TitleKind; alt?: string; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string }) {
   const [broken, setBroken] = useState(false)
@@ -108,6 +109,8 @@ export function RequestModal({ t, onClose, onDone }: { t: TitleDetail; onClose: 
   const navigate = useNavigate()
   const { toast } = useToast()
   const isAdmin = user?.role === 'admin'
+  const setup = useSetup()
+  const notReady = !!setup && !kindReady(setup, t.kind)
   const seasons = (t.seasons || []).filter(s => s.number > 0)
   const [all, setAll] = useState(true)
   const [pick, setPick] = useState<number[]>(() => seasons.filter(s => !s.requested && s.have < Math.max(1, s.episodes)).map(s => s.number))
@@ -164,10 +167,13 @@ export function RequestModal({ t, onClose, onDone }: { t: TitleDetail; onClose: 
             <Field group label="Folder"><Select ariaLabel="Folder" value={root} onChange={setRoot} options={[{ value: '', label: 'Box default' }, ...(svc?.roots || []).map(r => ({ value: r.path, label: r.path }))]} /></Field>
           </div>}
         </div>}
+        {notReady && setup && !err && (isAdmin
+          ? <div className="callout warn"><Icon name="alert" size={15} /><span className="grow">Downloads aren’t finished yet, so this can’t be fetched.</span><SetupLink s={setup} /></div>
+          : <div className="callout info"><Icon name="info" size={15} /><span>{notReadyText(setup, t.kind)}</span></div>)}
         {err && <div className="callout danger"><Icon name="alert" size={15} /><span>{err}</span></div>}
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy || nothing}><Icon name="plus" size={15} />{isAdmin ? 'Request' : 'Ask for it'}</button>
+          <button className="btn primary" disabled={busy || nothing || (notReady && !isAdmin)}><Icon name="plus" size={15} />{isAdmin ? 'Request' : 'Ask for it'}</button>
         </div>
       </form>
     </Modal>

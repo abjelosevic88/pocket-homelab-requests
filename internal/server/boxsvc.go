@@ -95,6 +95,7 @@ func forgetBoxServices() {
 	boxCacheMu.Lock()
 	boxCache = map[string]boxCached{}
 	boxCacheMu.Unlock()
+	forgetSetup()
 }
 
 // boxService reaches one of the box's services (answers cached for a minute).

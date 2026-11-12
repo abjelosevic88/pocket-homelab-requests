@@ -421,3 +421,24 @@ a.req-poster:hover, a.ready-art:hover, a.callout:hover, a.appr-title:hover { tex
 .get-row-req .progress { width: 80px; margin: 0; }
 .get-row .faint { color: var(--faint) !important; }
 @media (max-width: 560px) { .get-row { flex-wrap: wrap; } .get-row-kind { min-width: 0; } }
+
+/* Downloads setup banner */
+.setup-banner { align-items: center; flex-wrap: wrap; }
+.setup-banner-body { display: flex; flex-direction: column; gap: 3px; min-width: 200px; }
+.setup-gaps { margin: 2px 0 0; padding-left: 18px; }
+.setup-gaps li + li { margin-top: 2px; }
+.setup-link { gap: 6px; flex-shrink: 0; }
+.content-inner > .setup-banner { margin-bottom: 18px; }
+
+/* Downloads → How it's doing */
+.health-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.health-row { align-items: center; min-height: 52px; }
+.health-row > .grow { display: flex; flex-direction: column; gap: 2px; }
+.health-row .progress { margin: 4px 0 2px; max-width: 420px; }
+.health-name { font-weight: 600; font-size: 14px; min-width: 0; }
+.health-msg { overflow-wrap: anywhere; }
+.health-empty { padding: 6px 18px 16px; margin: 0; }
+.health-summary { align-items: center; }
+.tone-warn-bar .progress > span { background: var(--warning); }
+@media (max-width: 899px) { .health-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 767px) { .health-row { padding: 10px 14px; gap: 10px; } .health-empty { padding: 6px 14px 14px; } }

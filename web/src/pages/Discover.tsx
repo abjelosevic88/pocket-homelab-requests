@@ -9,6 +9,7 @@ import { Poster, RequestModal, StatePill, TitleGrid } from '../components/media'
 import { Carousel } from '../components/Carousel'
 import { CoreHint, Loading, Modal, Segmented, useAsync } from '../components/ui'
 import '../styles/discover.css'
+import { useSetup } from '../lib/setup'
 
 type RowData = { items: Title[]; disabled: string }
 
@@ -136,7 +137,10 @@ function Row({ row, load, hideAvailable }: { row: DiscoverRow; load: (k: string)
     return () => { live = false }
   }, [seen, row.key, load])
   const shown = useMemo(() => res && (hideAvailable ? res.items.filter(t => !t.available) : res.items), [res, hideAvailable])
-  const note = row.disabled || res?.disabled || (shown && shown.length === 0 ? 'Nothing here right now.' : '')
+  const setup = useSetup()
+  const raw = row.disabled || res?.disabled || ''
+  // while downloads aren't set up the banner explains; the rows just say so calmly
+  const note = (raw && setup && !setup.ready && /not set up/i.test(raw) ? 'Shows up once downloads are set up.' : raw) || (shown && shown.length === 0 ? 'Nothing here right now.' : '')
   return (
     <div ref={ref}>
       <Carousel title={row.title} items={shown} loading={!res && !row.disabled} note={note || undefined} square={row.kind === 'album'} />

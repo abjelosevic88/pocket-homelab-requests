@@ -10,6 +10,7 @@ import { CommandPalette, type PaletteCommand } from './CommandPalette'
 import { ShortcutsSheet } from './ShortcutsSheet'
 import { Avatar, type Anchor, type MenuItem, Menu, MenuButton, modalOpen, rectOf, useIsMobile, useMediaQuery } from './ui'
 import { AskButton } from './AskButton'
+import { type DownloadsSetup, SetupBanner, SetupCtx } from '../lib/setup'
 
 const SIDEBAR_KEY = 'prq-sidebar'
 
@@ -71,6 +72,12 @@ export default function Layout() {
   const load = useCallback(() => { api.get<Home>(`${V1}/home`).then(setHome).catch(() => {}) }, [])
   useEffect(() => { load() }, [loc.pathname, load])
   useOnChange(load)
+
+  // is the box ready to fetch requests? (the server keeps the answer a couple of minutes)
+  const [setup, setSetup] = useState<DownloadsSetup | null>(null)
+  useEffect(() => { api.get<DownloadsSetup>(`${V1}/downloads/setup`).then(setSetup).catch(() => {}) }, [loc.pathname])
+  const top = loc.pathname.split('/')[1] || ''
+  const bannerHere = ['', 'discover', 'search', 'title', 'requests'].includes(top)
 
   const [palette, setPalette] = useState(false)
   const [shortcuts, setShortcuts] = useState(false)
@@ -141,22 +148,24 @@ export default function Layout() {
 
   return (
     <CrumbCtx.Provider value={setCrumb}>
-      <HomeCtx.Provider value={{ home, reload: load }}>
-        <div className={`app ${sidebarOpen ? 'with-sidebar' : 'no-sidebar'} ${mobile ? 'is-mobile' : ''} ${drawer ? 'drawer-mode' : ''}`}>
-          {drawer && sidebarOpen && <div className="drawer-backdrop" onClick={e => { if (e.timeStamp - drawerOpenedAt.current > 400) setSidebarOpen(false) }} />}
-          <div className={`sidebar-wrap ${sidebarOpen ? 'open' : ''}`}>
-            <Sidebar onCreate={create} onNavigate={closeDrawer} home={home} />
+      <SetupCtx.Provider value={setup}>
+        <HomeCtx.Provider value={{ home, reload: load }}>
+          <div className={`app ${sidebarOpen ? 'with-sidebar' : 'no-sidebar'} ${mobile ? 'is-mobile' : ''} ${drawer ? 'drawer-mode' : ''}`}>
+            {drawer && sidebarOpen && <div className="drawer-backdrop" onClick={e => { if (e.timeStamp - drawerOpenedAt.current > 400) setSidebarOpen(false) }} />}
+            <div className={`sidebar-wrap ${sidebarOpen ? 'open' : ''}`}>
+              <Sidebar onCreate={create} onNavigate={closeDrawer} home={home} />
+            </div>
+            <div className="main">
+              <TopBar onMenu={toggleSidebar} onPalette={() => setPalette(true)} mobile={mobile} compact={narrow} sidebarOpen={sidebarOpen} crumb={crumb} />
+              <main className="content"><div className="content-inner">{bannerHere && <SetupBanner compact={top !== ''} />}<Outlet /></div></main>
+            </div>
+            {mobile && <button type="button" className="fab" aria-label="Request something" title="Request something" aria-haspopup="menu" aria-expanded={!!fabMenu} onClick={e => setFabMenu(fabMenu ? null : rectOf(e.currentTarget))}><Icon name="plus" size={24} strokeWidth={2.2} /></button>}
+            {fabMenu && <Menu anchor={fabMenu} align="right" items={createItems(create)} onClose={() => setFabMenu(null)} width={260} />}
+            {palette && <CommandPalette onClose={() => setPalette(false)} commands={commands} />}
+            {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} admin={isAdmin} />}
           </div>
-          <div className="main">
-            <TopBar onMenu={toggleSidebar} onPalette={() => setPalette(true)} mobile={mobile} compact={narrow} sidebarOpen={sidebarOpen} crumb={crumb} />
-            <main className="content"><div className="content-inner"><Outlet /></div></main>
-          </div>
-          {mobile && <button type="button" className="fab" aria-label="Request something" title="Request something" aria-haspopup="menu" aria-expanded={!!fabMenu} onClick={e => setFabMenu(fabMenu ? null : rectOf(e.currentTarget))}><Icon name="plus" size={24} strokeWidth={2.2} /></button>}
-          {fabMenu && <Menu anchor={fabMenu} align="right" items={createItems(create)} onClose={() => setFabMenu(null)} width={260} />}
-          {palette && <CommandPalette onClose={() => setPalette(false)} commands={commands} />}
-          {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} admin={isAdmin} />}
-        </div>
-      </HomeCtx.Provider>
+        </HomeCtx.Provider>
+      </SetupCtx.Provider>
     </CrumbCtx.Provider>
   )
 }

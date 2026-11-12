@@ -64,6 +64,7 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 
 | Call | |
 |---|---|
+| `GET /downloads/setup` | Everyone: `{ready, kinds: {movie, series, album}, admin_name}`; admins also `gaps: [{key, text}]` (radarr, sonarr, sabnzbd, usenet, indexers) and `settings_url` (Pocket Core's Settings → System → Downloads) |
 | `GET /home` | `{counts: {pending, on_the_way, available, attention, closed}, on_the_way: Request[], arrived: Request[], services: {movies, series, music, tv_discover}, admin?: {pending, problems, care_alerts, downloads}}` |
 | `GET /search?q=&kind=all\|movie\|series\|album` | `{results: Title[], errors: {radarr?: "…", sonarr?: "…", lidarr?: "…"}}` — music (`album`) also returns artists (`kind: "artist"`) |
 | `GET /discover` | `{rows: [{key, title, kind, disabled: "" \| "why"}]}` — the rows to show |
@@ -102,6 +103,8 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 | `GET /library/{movie\|series\|album}/{arrId}/removal` | What removing it would take: `{title, app, files, size, seasons: [{number, files, size}], recycle_bin, recycle_days, requests}` |
 | `POST /library/remove` | `{kind, arr_id, delete_files, exclude?, seasons?}` — take it off Radarr/Sonarr/Lidarr (with its files when asked; `exclude` adds an import-list exclusion); a show's `seasons` only switches those off and deletes their files. Every request for it shows "Removed from the server" |
 | `GET /downloads/sabnzbd`, `POST /downloads/sabnzbd/{pause\|resume}` | SABnzbd's speed, what's left, free space; pause / resume the queue |
+| `POST /downloads/sabnzbd/limit` | `{kbps}`: cap SABnzbd's download speed (0 = no limit) |
+| `GET /downloads/health` | Downloads → How it's doing: `{setup, services: [{name, label, role, optional, state: ok\|down\|missing\|off, version, message, open_url}], sabnzbd: {connected, status, queue, servers}, indexers: [{id, name, enabled, state: ok\|failing\|off, until, failed_at, message}], disks: [{app, what, path, free, total}], warnings: [{app, type, message, wiki}]}` |
 | `GET /problems` | `{items: Problem[]}` open reports |
 | `PUT /problems/{id}` | `{status: "resolved", reply?}` |
 | `GET /downloads` | `{items: [{app, id, kind, title, subtitle, poster, progress, eta, size, size_left, status, state, messages, client, indexer, quality, protocol, request_id}], errors}` |

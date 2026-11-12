@@ -350,6 +350,10 @@ func (s *Server) createRequest(ctx context.Context, u *store.User, in requestInp
 			return nil, err
 		}
 	} else if err := s.describe(ctx, rq); err != nil {
+		var he *httpErr
+		if errors.As(err, &he) && he.status == http.StatusServiceUnavailable {
+			return nil, s.notReadyErr(ctx, u.Role == "admin", rq.Kind, he)
+		}
 		return nil, err
 	}
 	// asked already?
