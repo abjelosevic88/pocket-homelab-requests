@@ -279,6 +279,7 @@ func (s *Server) registerWithCore(ctx context.Context) error {
 		Publishes: eventTopics,
 		Offers:    linkOffers,
 		Uses:      []core.Use{core.InferenceUse(), libraryUse, audiobooksUse},
+		Portable:  portable,
 		Services: []core.ServiceUse{
 			{Type: "radarr", Reason: "Add requested films, follow their downloads and keep them moving"},
 			{Type: "sonarr", Reason: "Add requested shows and seasons, follow their downloads and keep them moving"},

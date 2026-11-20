@@ -118,6 +118,8 @@ downloading, importing, available, partial, attention, fixed, retry, removed, pr
 Plus the usual Pocket calls: `auth/*`, `users` (admins; `request_policy` per person), `settings`, `settings/system`, `tokens`,
 `backup`, `export.json`, `export.csv`, `import`, `integrations/test`, `notify/test`, `ai/status`, `ai/models`, `ai/ask`.
 
+Pocket Move can copy your requests out and bring them in (`GET /pocket/portable`; link scopes `move:export` / `move:import`). Imported requests join the list; nothing is downloaded by the import, and a second run adds nothing.
+
 ## Pocket Core
 
 Offers `requests:read` (your requests, their state, what releases next — for Calendar, Day, Watch) and `requests:write` (ask for a
