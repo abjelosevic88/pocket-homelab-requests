@@ -1491,7 +1491,13 @@ func (s *Server) seerrSeason(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sr, err := s.seriesByTMDB(ctx, c, idParam(r, "id"))
-	if err != nil || sr == nil || sr.ID == 0 {
+	if err != nil || sr == nil {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	if sr.ID == 0 {
+		// Not in Sonarr yet: its lookup has no episodes, so take them from TVmaze.
+		out["episodes"] = tvmazeSeason(ctx, sr.TVDBID, n)
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
@@ -1510,6 +1516,32 @@ func (s *Server) seerrSeason(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(list, func(i, j int) bool { return list[i]["episodeNumber"].(int) < list[j]["episodeNumber"].(int) })
 	out["episodes"] = list
 	writeJSON(w, http.StatusOK, out)
+}
+
+// tvmazeSeason is season n of the show with that TheTVDB id from TVmaze, in
+// Jellyseerr's episode shape; empty when TVmaze does not know it or fails.
+func tvmazeSeason(ctx context.Context, tvdb int64, n int) []map[string]any {
+	list := []map[string]any{}
+	if tvdb == 0 {
+		return list
+	}
+	eps, err := arr.TVmazeEpisodes(ctx, tvdb)
+	if err != nil {
+		return list
+	}
+	for _, e := range eps {
+		if e.Season != n || e.Number == nil {
+			continue
+		}
+		var still any
+		if e.Image != nil && e.Image.Original != "" {
+			still = e.Image.Original
+		}
+		list = append(list, map[string]any{"id": e.ID, "episodeNumber": *e.Number, "seasonNumber": n, "name": e.Name, "airDate": nullStr(e.Airdate),
+			"overview": arr.StripTags(e.Summary), "stillPath": still, "voteAverage": e.Rating.Average})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i]["episodeNumber"].(int) < list[j]["episodeNumber"].(int) })
+	return list
 }
 
 // ---- the Radarr/Sonarr "servers" a request dialog offers ----

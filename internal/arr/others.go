@@ -360,6 +360,60 @@ func TVmazeAiring(ctx context.Context, days int, language string) ([]TVmazeShow,
 	return out, nil
 }
 
+// TVmazeEpisode is one episode in TVmaze's list for a show.
+type TVmazeEpisode struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Season  int    `json:"season"`
+	Number  *int   `json:"number"` // nil for specials TVmaze does not number
+	Airdate string `json:"airdate"`
+	Runtime int    `json:"runtime"`
+	Summary string `json:"summary"`
+	Rating  struct {
+		Average float64 `json:"average"`
+	} `json:"rating"`
+	Image *struct {
+		Medium   string `json:"medium"`
+		Original string `json:"original"`
+	} `json:"image"`
+}
+
+// TVmazeEpisodes returns a show's episodes by its TheTVDB id, for shows Sonarr
+// does not have yet (Sonarr's lookup has seasons but no episodes). No key needed.
+func TVmazeEpisodes(ctx context.Context, tvdbID int64) ([]TVmazeEpisode, error) {
+	cl := &http.Client{Timeout: 8 * time.Second}
+	get := func(path string, out any) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.tvmaze.com"+path, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := cl.Do(req)
+		if err != nil {
+			return fmt.Errorf("TVmaze did not answer: %w", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("TVmaze answered HTTP %d", resp.StatusCode)
+		}
+		return json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(out)
+	}
+	// The lookup answers with a redirect to the show, which the client follows.
+	var show struct {
+		ID int64 `json:"id"`
+	}
+	if err := get("/lookup/shows?thetvdb="+strconv.FormatInt(tvdbID, 10), &show); err != nil {
+		return nil, err
+	}
+	if show.ID == 0 {
+		return nil, fmt.Errorf("TVmaze has no show for TheTVDB %d", tvdbID)
+	}
+	var eps []TVmazeEpisode
+	if err := get("/shows/"+strconv.FormatInt(show.ID, 10)+"/episodes", &eps); err != nil {
+		return nil, err
+	}
+	return eps, nil
+}
+
 // StripTags removes HTML tags (TVmaze summaries are HTML).
 func StripTags(s string) string {
 	var b strings.Builder
