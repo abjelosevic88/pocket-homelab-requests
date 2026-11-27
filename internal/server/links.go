@@ -33,6 +33,18 @@ var portable = &core.Portable{
 	},
 }
 
+// capabilities is what Pocket Search, Pocket Day and Pocket Hub may ask
+// Requests (docs/capabilities.md in pocket-homelab-core); Register adds the
+// pocket:search/day/widget offers. All three only read the requests kept
+// here. There is no quick line to keep: asking for a title needs the exact
+// film, show, album or book picked from a search, and it starts a download.
+var capabilities = core.Capabilities{
+	Search: &core.Searchable{What: "The films, shows, albums and books you asked for, by title, with where each one stands",
+		Kinds: []string{"film", "series", "album", "book"}, Bangs: []string{"requests", "req"}},
+	Day:    &core.DayFeed{Label: "Requests", One: "request", Many: "requests", What: "What you asked for that day and what became available"},
+	Widget: &core.Widget{Title: "Requests", What: "What is downloading or still on its way, and what became available in the last few days"},
+}
+
 type linkRoute struct {
 	methods string
 	path    *regexp.Regexp
@@ -55,7 +67,7 @@ var errLinkScope = errors.New("outside the link's scope")
 
 // linkAllows reports whether a link token with these scopes may make this request.
 func linkAllows(scopes []string, r *http.Request) bool {
-	if portable.LinkAllows(scopes, r) {
+	if portable.LinkAllows(scopes, r) || capabilities.LinkAllows(scopes, r) {
 		return true
 	}
 	for _, lr := range linkRoutes {

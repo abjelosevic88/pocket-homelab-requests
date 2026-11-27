@@ -345,6 +345,18 @@ func (s *Store) RequestsOnDay(ctx context.Context, uid int64, from, to string) (
 	  ((created_at >= ? AND created_at < ?) OR (available_at >= ? AND available_at < ?)) ORDER BY created_at`, uid, from, to, from, to))
 }
 
+// ArrivedSince lists uid's requests that became available since a moment
+// (RFC 3339), the latest first, at most limit of them, and how many there are.
+func (s *Store) ArrivedSince(ctx context.Context, uid int64, since string, limit int) ([]Request, int, error) {
+	const where = ` FROM requests WHERE user_id = ? AND status = 'approved' AND state = 'available' AND available_at >= ?`
+	var total int
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(1)`+where, uid, since).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	out, err := collectRequests(s.DB.QueryContext(ctx, `SELECT `+requestCols+where+` ORDER BY available_at DESC, id DESC LIMIT ?`, uid, since, limit))
+	return out, total, err
+}
+
 // ---- timeline ----
 
 // AddEvent writes a line on a request's timeline.

@@ -120,10 +120,21 @@ Plus the usual Pocket calls: `auth/*`, `users` (admins; `request_policy` per per
 
 Pocket Move can copy your requests out and bring them in (`GET /pocket/portable`; link scopes `move:export` / `move:import`). Imported requests join the list; nothing is downloaded by the import, and a second run adds nothing.
 
+Pocket Search, Pocket Day and Pocket Hub read your requests through the common Pocket shape (Pocket Core's `docs/capabilities.md`); each link scope opens only its one route. They read the requests as Requests last saw them and never ask Radarr, Sonarr, Lidarr, Jellyfin or the download clients; nothing is requested, approved or removed through them, and they show only your own requests (an admin's too).
+
+| Call | Scope | |
+|---|---|---|
+| `GET /pocket/search?q=&limit=` | `pocket:search` | Your requests by title (or artist, author), every kind and state: `kind` film, series, album or book; the snippet says where it stands and when you asked ("downloading 45% · requested today"); opens `/requests/{id}`. Bangs `!requests`, `!req` |
+| `GET /pocket/day/{date}?tz=` | `pocket:day` | What you asked for that day (`requested`) and what became available (`available`), as `/day/{date}` has them; `tz` is a time zone name here |
+| `GET /pocket/widget` | `pocket:widget` | What is downloading (furthest along first), what became available in the last 3 days, then the rest still on its way; line "2 ready, 1 downloading" |
+
+There is no quick capture: asking for a title needs the exact one picked from a search, and it starts a download.
+
 ## Pocket Core
 
-Offers `requests:read` (your requests, their state, what releases next — for Calendar, Day, Watch) and `requests:write` (ask for a
-title on your behalf, e.g. a "Request" button in Pocket Watch or Pocket Music). Uses the box's Radarr, Sonarr, Lidarr, Prowlarr,
+Offers `requests:read` (your requests, their state, what releases next — for Calendar, Day, Watch), `requests:write` (ask for a
+title on your behalf, e.g. a "Request" button in Pocket Watch or Pocket Music) and `pocket:search`, `pocket:day`, `pocket:widget`
+(Pocket Search, Day and Hub; category Media). Uses the box's Radarr, Sonarr, Lidarr, Prowlarr,
 Jellyfin, Jellyseerr (import) and TMDb logins from Core, and Pocket AI. Events: `requests.created`, `requests.approved`,
 `requests.declined`, `requests.available`, `requests.attention`, `requests.problem_reported`.
 
